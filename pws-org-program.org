@@ -1173,8 +1173,6 @@ Il menu contiene le stesse voci, esposte tramite `easy-menu`.
   :keymap edoc-export-mode-map
   (easy-menu-add edoc-export-menu edoc-export-mode-map))
 
-(provide 'edoc-export-mode)
-;;; edoc-export-mode.el ends here
 #+end_src
 
 * Verifica delle intestazioni di configurazione #+KEY: richieste
@@ -1295,3 +1293,9 @@ Viene generato usando i dati già presenti nel documento Org EDOC e salvato nell
 #+end_src
 
 
+
+
+#+begin_src emacs-lisp :tangle  edoc-org-program.el
+(provide 'edoc-org-program)
+;;; edoc-export-org-program.el ends here
+#+end_src
