@@ -25,4 +25,5 @@
       ;; git diff --quiet restituisce 1 se ci sono modifiche
       (= (call-process "git" nil nil nil "diff" "--quiet") 1))))
 
+
 (provide 'edoc-git)
