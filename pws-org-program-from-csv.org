@@ -1,0 +1,191 @@
+#+TITLE: Generazione Org da Proposte e Relatori
+#+AUTHOR: Emmanuele Somma
+#+PROPERTY: header-args:emacs-lisp :tangle edoc-org-program-from-csv.el :mkdirp yes :comments org
+
+Questo file genera un modulo Emacs Lisp per leggere due file CSV contenenti:
+
+- Le *proposte* dei talk
+- I *relatori* associati
+
+e crea un documento Org strutturato con:
+
+1. Una sezione =* Proposte= in cui ogni proposta è una sezione
+2. Una sezione =* Relatori= in cui ogni email genera sottosezioni per i relatori associati
+
+* Setup
+
+#+begin_src emacs-lisp :tangle edoc-org-program-from-csv.el :mkdirp yes :comments org
+(require 'csv)
+(require 'subr-x)
+(require 'cl-lib)
+(require 'org)
+#+end_src
+
+* Lettura CSV
+
+Legge il contenuto del CSV e lo restituisce come lista di alist, usando la prima riga come header.
+
+#+begin_src emacs-lisp :tangle edoc-org-program-from-csv.el :mkdirp yes :comments org
+(defun edoc--csv-read-file (filepath)
+  "Legge un file CSV ben formato e restituisce una lista di alist.
+Gestisce campi racchiusi tra virgolette e righe con virgola iniziale."
+  (with-temp-buffer
+    (insert-file-contents filepath)
+    (let ((csv-separator ?,)
+          (csv-field-quotes ?\"))
+      (csv-parse-buffer t))))
+#+end_src
+
+* Formattazione delle proprietà
+
+Crea un blocco `:PROPERTIES:` da una alist.
+
+#+begin_src emacs-lisp :tangle edoc-org-program-from-csv.el :mkdirp yes :comments org
+(defconst edoc--campo->org-prop
+  '(("ID" . "ID")
+    ("Data Invio" . "INVIO")
+    ("Indirizzo IP" . "IP")
+    ("Referrer" . "REFERRER")
+    ("Email di contatto con il relatore (Identificativo del TALK)" . "EMAIL")
+    ("Nome e Cognome" . "NOME")
+    ("Numero di telefono per contattare il relatore principale" . "NTEL")
+    ("Proposta di durata" . "DURATA")
+    ("Titolo" . "TITOLO")
+    ("Sessioni" . "SESSIONI")
+    ("Dal vivo" . "LIVE")
+    ("Argomento / Aree di interesse" . "KEYWORDS")
+    ("Quale altro argomento?" . "OTHER")
+    ("Saranno presenti più relatori sul palco?" . "MULTI")
+    ("Consenso alla pubblicazione degli atti e pubblicazione sotto licenza libera" . "FREE")
+    ("Consenso alle registrazioni audio/video e pubblicazione sotto licenza libera" . "AV-FREE")
+    ("Eventuali commenti per gli organizzatori" . "COMMENTI")
+  ;; Estensione: campi per i relatori
+    ("Relatore o autore?" . "RUOLO")
+    ("Cognome" . "COGNOME")
+    ("Nome" . "NOME") ;; preferito rispetto a "Nome e Cognome"
+    ("Organizzazione o Istituzione" . "ORG")
+    ("Email" . "E-CONTACT") ;; campo generale
+    ("Numero di Telefono" . "NTEL") ;; duplicato per sicurezza
+    ("Breve (ma non troppo) presentazione dell'autore." . "PRESENTAZIONE")
+    ("Telegram" . "TELEGRAM"))
+  "Associazione tra i nomi dei campi del CSV e le proprietà Org standardizzate.")
+
+
+
+
+(defun edoc--org-format-properties (plist &optional exclude-keys)
+  "Formatta una alist PLIST come property drawer Org, escludendo EXCLUDE-KEYS."
+  (let ((content ":PROPERTIES:\n"))
+    (dolist (pair plist)
+      (let* ((key (car pair))
+             (val (cdr pair))
+             (short-key (alist-get key edoc--campo->org-prop nil nil #'string=)))
+        (unless (or (null short-key)
+                    (member key exclude-keys))
+          (setq content
+                (concat content
+                        (format ":%s: %s\n" short-key val))))))
+    (concat content ":END:\n")))
+#+end_src
+
+* Sanitizzazione dei titoli
+
+Per rimuovere newline dai titoli e metterli in forma leggibile.
+
+#+begin_src emacs-lisp :tangle edoc-org-program-from-csv.el :mkdirp yes :comments org
+(defun edoc--sanitize-title (title)
+  "Sanitize title for Org headings."
+  (replace-regexp-in-string "[\n\r]+" " " title))
+#+end_src
+
+* Funzione principale
+
+Questa è la funzione interattiva che legge i file CSV e genera un buffer Org con la struttura desiderata.
+
+#+begin_src emacs-lisp :tangle edoc-org-program-from-csv.el :mkdirp yes :comments org
+;;;###autoload
+(defun edoc-genera-org-da-csv (proposte-file relatori-file output-file)
+  "Legge due file CSV contenenti proposte e relatori, e genera un documento Org."
+  (interactive
+   (list (read-file-name "File CSV Proposte: " nil "2025-04-10_18_50_54_proposta.csv")
+         (read-file-name "File CSV Relatori: " nil "2025-04-10_18_49_52_relatori.csv")
+         (read-file-name "Salva output Org in: " nil "2025.org")))
+
+  (let* ((proposte (edoc--csv-read-file proposte-file))
+         (relatori (edoc--csv-read-file relatori-file)))
+    (with-temp-buffer
+      (org-mode)
+      (insert "#+TITLE: Raccolta Proposte e Relatori\n\n")
+      (insert "* Proposte\n")
+      (dolist (proposta
+               (sort proposte
+                     (lambda (a b)
+                       (let* ((sa (format "[%s %s %s] %s"
+                                          (alist-get "Sessioni" a nil nil #'string=)
+                                          (let ((d (alist-get "Proposta di durata" a nil nil #'string=)))
+                                            (if (and d (>= (length d) 2)) (substring d 0 2) ""))
+                                          (alist-get "Dal vivo" a nil nil #'string=)
+                                          (alist-get "Email di contatto con il relatore (Identificativo del TALK)" a nil nil #'string=)))
+                              (sb (format "[%s %s %s] %s"
+                                          (alist-get "Sessioni" b nil nil #'string=)
+                                          (let ((d (alist-get "Proposta di durata" b nil nil #'string=)))
+                                            (if (and d (>= (length d) 2)) (substring d 0 2) ""))
+                                          (alist-get "Dal vivo" b nil nil #'string=)
+                                          (alist-get "Email di contatto con il relatore (Identificativo del TALK)" b nil nil #'string=))))
+                         (string-lessp sa sb)))))
+        (let* ((email (alist-get "Email di contatto con il relatore (Identificativo del TALK)" proposta nil nil #'string=))
+               (live (alist-get "Dal vivo" proposta nil nil #'string=))
+               (sessioni (alist-get "Sessioni" proposta nil nil #'string=))
+               (durata (substring (alist-get "Proposta di durata" proposta nil nil #'string=) 0 2))
+               (descrizione (alist-get "Descrizione" proposta nil nil #'string=))
+               (titolo (alist-get "Titolo" proposta nil nil #'string=)))
+          (insert (format "** [%s %s %s] %s\n" sessioni durata live email))
+          (insert (edoc--org-format-properties proposta '("Descrizione")))
+          (when descrizione
+            (insert "\n" (string-trim descrizione) "\n\n"))))
+
+      (insert "\n* Relatori\n")
+      (dolist (relatore relatori)
+        (let* ((email (alist-get "Email di contatto con il relatore (Identificativo del TALK)" relatore nil nil #'string=))
+               (nome (alist-get "Nome" relatore nil nil #'string=))
+               (cognome (alist-get "Cognome" relatore nil nil #'string=)))
+          (insert (format "** %s\n" email))
+          (insert (edoc--org-format-properties relatore))
+          (insert "\n")))
+
+      ;; Salva il buffer invisibile su file
+      (write-region (point-min) (point-max) output-file)
+      (message "Documento Org generato in %s" output-file))))
+
+
+
+(defun edoc-sposta-presentazione-interattiva ()
+  "Per ogni relatore con :PRESENTAZIONE:, chiede se spostare il contenuto nel corpo.
+Lavora solo nella sezione '* Relatori'."
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (unless (re-search-forward "^\\* Relatori\\>" nil t)
+      (user-error "Sezione '* Relatori' non trovata"))
+    (org-narrow-to-subtree)
+    (org-map-entries
+     (lambda ()
+       (let* ((props (org-entry-properties nil 'standard))
+              (presentazione (cdr (assoc "PRESENTAZIONE" props)))
+              (nome (org-get-heading t t)))
+         (when presentazione
+           (let ((ok (yes-or-no-p (format "Spostare presentazione per: %s?\n\n%s\n\n" nome presentazione))))
+             (when ok
+               (org-end-of-meta-data t)
+               (unless (looking-at-p "[[:space:]]*$")
+                 (insert "\n\n"))
+               (insert (string-trim presentazione) "\n")
+               (org-delete-property "PRESENTAZIONE")
+               (message "✔ Spostata presentazione per: %s" nome))))))
+     nil 'tree)
+    (widen)
+    (message "🔍 Revisione completata.")))
+#+end_src
+
+
+
