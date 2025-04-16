@@ -5,7 +5,7 @@
 (defvar edoc--generate-links-in-export t
   "Se non nil, inserisce link HTML nei file Markdown esportati.")
 
-(defvar edoc--data-provvisoria nil
+(defvar edoc--data-provvisoria "2023-04-13"
   "Data provvisoria da aggiungere ai file. Se nil usa la data corrente")
 
 (defun edoc--read-config-headers ()
