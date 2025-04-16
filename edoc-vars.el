@@ -43,4 +43,17 @@
                     (cl-pairlis (mapcar #'intern (mapcar #'downcase header)) row))
                   body))))))
 
+(defun edoc--org-vars-to-md-header (vars)
+"Trasforma un plist di variabili in intestazione Markdown `Chiave: Valore`."
+(let* ((alist (edoc--plist-to-alist vars))
+       (lines
+        (mapcar (lambda (pair)
+                  (format "%s: %s"
+                          (capitalize (substring (symbol-name (car pair)) 1))
+                          (cdr pair)))
+                (sort alist (lambda (a b)
+                              (string< (symbol-name (car a)) (symbol-name (car b))))))))
+  (concat (string-join lines "\n") "\n\n")))
+
+
 (provide 'edoc-vars)
