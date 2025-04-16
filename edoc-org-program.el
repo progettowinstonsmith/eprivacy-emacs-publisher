@@ -1,3 +1,4 @@
+;;; edoc-org-program.el --- Creazione programma e-privacy da documento org -*- lexical-binding: t -*-
 (defcustom edoc-email-escluse
   nil
   "Elenco di email da escludere dall'elenco all-mails.")
@@ -872,6 +873,23 @@ Se mancano alcune chiavi, mostra un messaggio dettagliato."
          "Biografie relatori\n\n"
          bios))
       (message "mail.md scritto in %s" output))))
+
+(defun edoc-export-org-program-to-markdown (file &optional _unused-target)
+  "Funzione speciale di esportazione per i file PROGRAM.
+Apre FILE, esegue `edoc-esporta-tutti-md`, chiude il buffer, e salva gli hash MD5."
+  (let ((buf (find-file-noselect file)))
+    (with-current-buffer buf
+      (let ((default-directory (file-name-directory file)))
+        (message "🚀 Esportazione programmata da: %s" file)
+        (goto-char (point-min))
+        (when (fboundp 'edoc-esporta-tutti-md)
+          (edoc-esporta-tutti-md))
+        ;; Determina i file prodotti
+        (let ((products (edoc--org-product-paths file)))
+          ;; Genera file hash
+          (edoc--write-md5-file products)))
+      ;; Chiudi il buffer dopo l’esportazione
+      (kill-buffer buf))))
 
 (provide 'edoc-org-program)
 ;;; edoc-export-org-program.el ends here
