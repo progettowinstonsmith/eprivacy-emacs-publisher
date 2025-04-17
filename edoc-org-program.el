@@ -1,4 +1,7 @@
 ;;; edoc-org-program.el --- Creazione programma e-privacy da documento org -*- lexical-binding: t -*-
+
+(require 'ox-md)
+
 (defcustom edoc-email-escluse
   nil
   "Elenco di email da escludere dall'elenco all-mails.")
@@ -6,7 +9,7 @@
 (defvar edoc--generate-links-in-export t
   "Se non nil, inserisce link HTML nei file Markdown esportati.")
 
-(defvar edoc--data-provvisoria "2023-04-13"
+(defvar edoc--data-provvisoria nil
   "Data provvisoria da aggiungere ai file. Se nil usa la data corrente")
 
 (defun edoc--read-config-headers ()
@@ -402,7 +405,7 @@ Restituisce una alist (KEY . VALUE)."
          (pelican-path (or (cdr (assoc 'PELICAN_PATH config))
                            (getenv "PELICAN_PATH")))
          (event-path (expand-file-name event-subdir pelican-path))
-         (vars-file (expand-file-name "vars" event-path)))
+         (vars-file (expand-file-name "vars.md" event-path)))
     (unless (file-readable-p vars-file)
       (user-error "File 'vars' non trovato: %s" vars-file))
     (with-temp-buffer
@@ -415,7 +418,9 @@ Restituisce una alist (KEY . VALUE)."
         alist))))
 
 (defun edoc--genera-header-md (vars edoc slug &optional template)
-  "Restituisce l’header markdown come stringa."
+  "Restituisce l’header markdown come stringa, usando VARS e i campi standard.
+Se una chiave è presente sia in VARS che nei campi standard (es. 'Date', 'slug'),
+viene mantenuta solo la versione standard."
   (let* ((edition (cdr (assoc 'EPRIVACY_N (plist-get edoc :config))))
          (now (let ((time (decode-time)))
                 (format "%s %02d:%02d:%02d"
@@ -425,8 +430,13 @@ Restituisce una alist (KEY . VALUE)."
          (standard `(("Template" . ,(or template "event"))
                      ("XStatus" . "draft")
                      ("Date" . ,now)
-                     ("slug" . ,(format "e-privacy-%s%s" edition (or slug "")))))
-         (merged (append standard vars)))
+                     ("Slug" . ,(format "e-privacy-%s%s" edition (or slug "")))))
+         ;; Filtra via eventuali chiavi presenti anche in standard
+         (filtered-vars (cl-remove-if (lambda (pair)
+                                        (assoc (car pair) standard))
+                                      vars))
+         ;; Merge finale
+         (merged (append standard filtered-vars)))
     (mapconcat (lambda (pair)
                  (format "%s: %s" (car pair) (cdr pair)))
                merged "\n")))
@@ -771,7 +781,7 @@ Es. 1GM → Giovedì 16 maggio 2025 - mattina"
     (message "Esportati speakers in %.2f sec."
              (float-time (time-subtract (current-time) start)))
     (edoc-esporta-interventi-md)
-    (message "Esportati interventi in %.2f sec."
+    (message "Esportati interventi in %.2f sec. Per favore attendi ancora 30 sec"
              (float-time (time-subtract (current-time) start)))
     (sleep-for 10)
     (edoc-esporta-programma-md)
@@ -876,11 +886,15 @@ Se mancano alcune chiavi, mostra un messaggio dettagliato."
 
 (defun edoc-export-org-program-to-markdown (file &optional _unused-target)
   "Funzione speciale di esportazione per i file PROGRAM.
-Apre FILE, esegue `edoc-esporta-tutti-md`, chiude il buffer, e salva gli hash MD5."
+  Apre FILE, esegue `edoc-esporta-tutti-md`, chiude il buffer, e salva gli hash MD5."
   (let ((buf (find-file-noselect file)))
     (with-current-buffer buf
       (let ((default-directory (file-name-directory file)))
         (message "🚀 Esportazione programmata da: %s" file)
+  	;; Imposta la variabile d'ambiente PELICAN_PATH con la directory root del repo public
+  	(let ((pelican-root (edoc--repo-path "public")))
+          (setenv "PELICAN_PATH" pelican-root)
+          (message "🌍 Variabile PELICAN_PATH impostata a %s" pelican-root))
         (goto-char (point-min))
         (when (fboundp 'edoc-esporta-tutti-md)
           (edoc-esporta-tutti-md))

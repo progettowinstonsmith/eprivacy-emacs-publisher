@@ -3,7 +3,7 @@
 :CUSTOM_ID: h:3fccfadf-22e9-457f-b9fd-ed1b48600d23
 :END:
 
-#+begin_src emacs-lisp :tangle "pws-lisp/pws-common.el" :mkdirp yes
+#+begin_src emacs-lisp :tangle "pws-common.el" :mkdirp yes
 ;;; pws-common.el --- Common functions for my dotemacs -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2020-2025  Protesilaos Stavrou
@@ -495,8 +495,8 @@ heading. All I do here is set some stylistic preferences.
 Note that Emacs also has a ~diary~ command. I used it for a while, but
 Org is far more capable, so I switched to it completely.
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el" :mkdirp yes
-;;; Calendar
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el" :mkdirp yes
+;;; Calendar  -*- lexical-binding: t; -*-
 (use-package calendar
   :ensure nil
   :commands (calendar)
@@ -545,7 +545,7 @@ a numeric value representing minutes for a forewarning from =appt.el=.
 I use this in tandem with ~org-capture~ for tasks that need to be
 done at a specific time, such as coaching sessions ([[#h:f8f06938-0dfe-45c3-b4cf-996d36cba82d][The =pws-emacs-org.el= Org capture templates (~org-capture~)]]).
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 ;;; Appt (appointment reminders which also integrate with Org agenda)
 (use-package appt
   :ensure nil
@@ -607,8 +607,8 @@ liking. I do as much, though know that Org is perfectly usable without
 any configuration. The following sections contain further commentary
 on how I use Org.
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
-;;; Org-mode (personal information manager)
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
+;;; Org-mode (personal information manager)  -*- lexical-binding: t; -*-
 (use-package org
   :ensure nil
   :init
@@ -743,7 +743,7 @@ The other small tweak I make is to make the indentation a bit more
 pronounced, by setting ~org-indent-indentation-per-level~ to =4=
 instead of =2=.
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 ;;;; `org-indent-mode' and related
 (use-package org
   :ensure nil
@@ -816,7 +816,7 @@ In terms of workflow, I have not done a refile in a very long time,
 because my entries always stay in the same place as I had envisaged at
 the capture phase ([[#h:f8f06938-0dfe-45c3-b4cf-996d36cba82d][The =pws-emacs-org.el= Org capture templates (~org-capture~)]]).
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 ;;;; refile, todo
 (use-package org
   :ensure nil
@@ -880,7 +880,7 @@ Note that in the settings below I disable the auto-alignment that Org
 does where it shifts tags to the right of the heading. I do not like
 it.
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 ;;;; tags
 (use-package org
   :ensure nil
@@ -903,7 +903,7 @@ keep track of this information, as it is sometimes useful to capture
 mistakes or figure out intent in the absence of further clarification
 (though I do tend to write why something happened).
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 ;;;; log
 (use-package org
   :ensure nil
@@ -959,7 +959,7 @@ from what was already stored.
 I bind ~org-store-link~ in main section of the Org configuration:
 [[#h:e03df1e0-b43e-49b5-978e-6a511165617c][The =pws-emacs-org.el= section with basic Org settings]].
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 ;;;; links
 (use-package org
   :ensure nil
@@ -1036,7 +1036,7 @@ different things, such as:
 
 This is a wonderful world of possibilities!
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 ;;;; code blocks
 (use-package org
   :ensure nil
@@ -1069,7 +1069,7 @@ we can load an export backend by finding the correspond =ox-FORMAT.el=
 file and either ~require~ it or load it with ~use-package~, like what
 I showed for Org Babel ([[#h:1f5a0d46-5202-48dd-8048-b48ce17f3df8][The =pws-emacs-org.el= Org code block settings]]).
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 ;;;; export
 (use-package org
   :ensure nil
@@ -1162,7 +1162,7 @@ As for my workflow, here is an overview:
   =DEADLINE= associated with them. I organise the rest of my
   activities in the given day based on those.
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 ;;;; capture
 (use-package org-capture
   :ensure nil
@@ -1293,7 +1293,7 @@ The Org agenda has lots of other extras, such as to filter the view.
 Though I never use them. My custom agenda does exactly what I need
 from it and thus keeps me focused.
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 ;;;; agenda
 (use-package org-agenda
   :ensure nil
@@ -1506,7 +1506,7 @@ from it and thus keeps me focused.
 Finally, we ~provide~ the module. This is the mirror function of
 ~require~ ([[#h:e6c4acf5-5b51-4b38-a86a-bf3f698ac872][The init.el final part to load the individual modules]]).
 
-#+begin_src emacs-lisp :tangle "pws-emacs-modules/pws-emacs-org.el"
+#+begin_src emacs-lisp :tangle "pws-emacs-org.el"
 (provide 'pws-emacs-org)
 #+end_src
 
@@ -1517,7 +1517,7 @@ Finally, we ~provide~ the module. This is the mirror function of
 :CUSTOM_ID: h:9974eac8-2167-45c4-90e0-12dd877403da
 :END:
 
-#+begin_src emacs-lisp :tangle "pws-lisp/pws-org.el" :mkdirp yes
+#+begin_src emacs-lisp :tangle "pws-org.el" :mkdirp yes
 ;;; pws-org.el --- Tweaks for my org-mode configurations -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2021-2025  Protesilaos Stavrou
