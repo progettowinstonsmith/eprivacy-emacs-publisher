@@ -124,9 +124,19 @@
       (insert (propertize "PWS E-PRIVACY PS: " 'face '(:height 1.5 :weight bold)))
       (insert " Working on: ")
       (insert (propertize (format "E-PRIVACY %s %s edition" (or num "??") (or edition "??")) 'face '(:height 1.5 :weight bold)))
-      (insert (format "[%s]" fase))
+      (insert (format "[%s] " fase))
+      ;; Legge il contenuto di .last nel repo public
+      (let* ((public-root (edoc--repo-path "public"))
+	     (last-path (expand-file-name ".last" public-root))
+	     (last-value (if (file-readable-p last-path)
+			     (with-temp-buffer
+                               (insert-file-contents last-path)
+                               (string-trim (buffer-string)))
+			   "void")))
+	(insert (format "[%s]" last-value)))
+      (when (edoc-devserver-running-p)
+	(insert " 🔥 http://test.winstonsmith.org"))
       (insert "\n\n")
-
       
       ;; Repo info
       (insert (propertize "📝 [Situazione dei repository]\n" 'face '(:weight bold)))
@@ -188,13 +198,17 @@
       	(define-key map (kbd "r P") (lambda () (interactive) (edoc-dashboard-git-do 'pull)))
       	(define-key map (kbd "r g") (lambda () (interactive) (edoc-dashboard-git-do 'commit-push)))
       	(define-key map (kbd "r s") #'edoc-dashboard-git-status)
+	(define-key map (kbd "=") #'edoc-devserver-toggle)
 	(define-key map (kbd "q") #'quit-window)
 	(define-key map (kbd "g") #'edoc-dashboard-refresh)
-	(define-key map (kbd "S") #'edoc-dashboard-toggle-enable)
+	(define-key map (kbd "S") #'edoc-dashboard-cycle-status)
+	(define-key map (kbd "E") #'edoc-dashboard-toggle-enable)
+	(define-key map (kbd "D") #'edoc-dashboard-toggle-enable)
+	(define-key map (kbd "L") #'edoc-dashboard-toggle-lock)
+	(define-key map (kbd "U") #'edoc-dashboard-toggle-lock)
 	(define-key map (kbd "I") #'edoc-import-markdown)
 	(define-key map (kbd "p") #'edoc-dashboard-publish-file)
-	(define-key map (kbd "U") #'edoc-dashboard-upload-public)
-	(define-key map (kbd "X") #'edoc-dashboard-toggle-lock)
+	(define-key map (kbd "*") #'edoc-dashboard-upload-public)
   	(define-key map (kbd "!") #'edoc-open-public-shell)
     	(define-key map (kbd "C") #'edoc-dashboard-create-org-file)
       	(define-key map (kbd "M") #'edoc-dashboard-open-md)
@@ -304,7 +318,7 @@
 
 (defun edoc--set-draft (file draft)
   "Imposta `#+STATUS:` su draft o cleared nel FILE Org."
-  (edoc--set-org-keyword file "STATUS" (if draft "draft" "cleared")))
+  (edoc--set-org-keyword file "STATUS" (if draft "draft" "published")))
 
 
 (defun edoc--set-org-keyword (file key value)
@@ -390,20 +404,53 @@
                                     (lambda (val) (string= val "draft")))
       	  "📝" "📄") "❌"))
 
+
+(defun edoc--get-org-status-value (file)
+  "Restituisce il valore della keyword `#+STATUS:` in FILE, in simbolo (default: 'draft)."
+  (let ((val (downcase (or (edoc--read-org-keyword-value file "STATUS") "draft"))))
+    (cond
+     ((string= val "published") 'published)
+     ((string= val "hidden")    'hidden)
+     ((string= val "skip")      'skip)
+     ((string= val "draft")     'draft)
+     (t                         'published)))) ; fallback
+
+(defun edoc--status-icon (file)
+  "Restituisce un’icona in base alla keyword `#+STATUS:`."
+  (pcase (edoc--get-org-status-value file)
+    ('draft     "📝")
+    ('published "📄")
+    ('hidden    "👁️‍🗨️")
+    ('skip      "🚫")
+    (_          "❓")))
+
+(defun edoc-dashboard-cycle-status ()
+  "Cicla il valore della chiave `#+STATUS:` (draft → published → hidden → skip → draft)."
+  (interactive)
+  (let ((file (get-text-property (point) 'edoc-file))
+        (line (line-number-at-pos)))
+    (if (not file)
+        (message "⚠ Nessun file selezionato.")
+      (let* ((current (edoc--get-org-status-value file))
+             (order '(draft published hidden skip))
+             (next (or (cadr (member current order)) (car order))))
+        (edoc--set-org-keyword file "STATUS" (symbol-name next))
+        (message "📄 Stato aggiornato a: %s" (capitalize (symbol-name next)))
+        (edoc-dashboard-refresh)
+        (edoc--goto-line line)))))
+
 (defun edoc--org-status-icons (file)
   "Restituisce un plist con le icone degli stati per il FILE Org."
   (let* ((lock (if (edoc--get-org-lock file) "🔒" "🟩"))
          (enabled (if (edoc--get-org-enabled file) "✅" "⛔"))
-         (draft (edoc--get-org-draft file))
+         (status (edoc--status-icon file))
          (md-icon (cond
-                   ((not (seq-some #'file-exists-p (edoc--org-product-paths file)))
-                    "🔴") ;; markdown non esistente
-                   ((edoc--md5-up-to-date-p (edoc--org-product-paths file))
-                    "🟢")  ;; markdown e hash combaciano
-                   (t "🟡")))) ;; markdown esiste ma modificato
+                   ((not (seq-some #'file-exists-p (edoc--org-product-paths file))) "🔴")
+                   ((edoc--md5-up-to-date-p (edoc--org-product-paths file)) "🟢")
+                   (t "🟡"))))
     (list :lock lock
           :enabled enabled
-          :draft draft
+          :draft status
           :md md-icon)))
 
 (defun edoc-dashboard-open-file-at-point ()
@@ -508,11 +555,9 @@
 
    ["📂 File Org"
     ("C" "Crea nuovo file org" edoc-dashboard-create-org-file)
-    ("I" "Importa da public" edoc-import-markdown)
     ("p" "Pubblica file corrente" edoc-dashboard-publish-file)
     ("P" "Pubblica tutto" edoc-dashboard-publish-all)
-    ("S" "Toggle abilita/disabilita" edoc-dashboard-toggle-enable)
-    ("X" "Toggle blocco (lock/unlock)" edoc-dashboard-toggle-lock)]
+    ("I" "Importa da public" edoc-import-markdown)]
 
    ["📡 Git"
     ("r s" "Git status" edoc-dashboard-git-status)
@@ -521,19 +566,51 @@
     ("r g" "Commit + Push" (lambda () (interactive) (edoc-dashboard-git-do 'commit-push)))]
 
    ["🚀 Altri"
-    ("U" "Upload sito (rsync)" edoc-dashboard-upload-public)
+    ("*" "Upload sito (rsync)" edoc-dashboard-upload-public)
     ("!" "Apri shell in public/" edoc-open-public-shell)
+    ("=" "Attiva/disattiva dev server" edoc-devserver-toggle)
     ("q" "Chiudi dashboard" quit-window)]
 
    ["📄 Legenda Colonne:"
-    ("1" "🔒 / 🟩 = Locked / Unlocked"
-     (lambda () (interactive) (message "Legenda — stato lock")))
-    ("2" "✅ / ⛔ = Enabled / Disabled"
-     (lambda () (interactive) (message "Legenda — stato enable")))
-    ("3" "📝 / 📄 = Draft / Final"
-     (lambda () (interactive) (message "Legenda — stato draft")))
-    ("4" "🔴 / 🟡 / 🟢 = No MD5 / MD5 errata / MD5 ok"
+    ("L" "🔒 / 🟩 = Locked / Unlocked" edoc-dashboard-toggle-lock)
+    ("D" "✅ / ⛔ = Enabled / Disabled" edoc-dashboard-toggle-enable)
+    ("3" "📝 / 📄 / 👁️‍🗨️ / 🚫 = Draft / Pubblicato / Nascosto / Skip" 
+     edoc-dashboard-cycle-status)
+    ("-" "🔴 / 🟡 / 🟢 = No MD5 / MD5 errata / MD5 ok"
      (lambda () (interactive) (message "Legenda — stato MD5")))]])
 
+(defvar edoc--devserver-buffer-name "*Shell:Devserver*"
+  "Buffer dedicato al devserver pelican.")
+
+(defun edoc-devserver-running-p ()
+  "Restituisce t se il devserver è attivo (cioè se esiste un buffer con processo vivo)."
+  (let ((proc (get-buffer-process edoc--devserver-buffer-name)))
+    (and proc (process-live-p proc))))
+
+(defun edoc-devserver-toggle ()
+  "Attiva o disattiva il devserver con `make devserver` / `make stopserver`."
+  (interactive)
+  (let ((default-directory (edoc--repo-path "public")))
+    (if (edoc-devserver-running-p)
+        ;; Spegnimento: make stopserver
+        (progn
+          (with-current-buffer edoc--devserver-buffer-name
+            (goto-char (point-max))
+            (insert "make stopserver")
+            (comint-send-input)
+            (message "🛑 Devserver in fase di spegnimento... (make stopserver inviato)")
+            (sit-for 5.0)
+	    (insert "exit")
+	    (comint-send-input)
+	    (kill-buffer edoc--devserver-buffer-name))
+          (edoc-dashboard-refresh))
+      ;; Avvio: make devserver
+      (with-current-buffer (get-buffer-create edoc--devserver-buffer-name)
+        (shell (current-buffer))
+        (goto-char (point-max))
+        (insert "make devserver")
+        (comint-send-input)
+        (message "🔥 Devserver avviato. Puoi vedere il sito su http://test.winstonsmith.org"))
+      (edoc-dashboard-refresh))))
 
 (provide 'edoc-dashboard)

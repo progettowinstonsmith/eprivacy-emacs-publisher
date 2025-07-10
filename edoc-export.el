@@ -53,7 +53,7 @@ Chiede conferma anche per il blocco del file al termine."
     (if (not file)
         (message "⚠ Nessun file selezionato.")
       (if (edoc--get-org-lock file)
-          (message "❌ Il file è bloccato. Usa `X` per sbloccarlo.")
+          (message "❌ Il file è bloccato. Usa 'U' per sbloccarlo.")
         (let* ((product-paths (edoc--org-product-paths file))
                (export-label (edoc--read-org-keyword-value file "PWS_EXPORT")))
           ;; Conferma se esistono già prodotti
@@ -209,12 +209,15 @@ Le keyword locali sovrascrivono quelle globali. LOCK viene escluso."
         (message "✅ Esportazione batch completata.")
         (display-buffer "*edoc-export-log*")))))
 
+
 (defun edoc-dashboard-upload-public ()
-  "Esegue `make rsync_upload` nella directory public del sito e aggiorna `.last`."
+  "Chiede conferma e, se confermato, esegue `make rsync_upload` nella directory public e aggiorna `.last`."
   (interactive)
   (let ((public-root (edoc--repo-path "public")))
     (if (file-directory-p public-root)
-        (edoc-upload-if-ok public-root)
+        (if (yes-or-no-p "🔁 Vuoi procedere con l’upload del sito pubblico via `make rsync_upload`?")
+            (edoc-upload-if-ok public-root)
+          (message "❌ Upload annullato."))
       (message "⚠️  Directory public non trovata: %s" public-root))))
 
 (defun edoc-upload-if-ok (public-root)
@@ -231,5 +234,32 @@ crea o aggiorna il file `.last` nella stessa directory con il timestamp corrente
               (insert (format-time-string "%Y-%m-%d %H:%M:%S\n")))
             (message "Upload completato con successo. File `.last` aggiornato."))
 	(message "Errore durante l'upload (codice %s). File `.last` NON aggiornato." exit-code)))))
+
+(defun edoc-start-devserver ()
+  "Avvia il devserver di Pelican nella directory public con `make devserver` previa conferma."
+  (interactive)
+  (let ((public-root (edoc--repo-path "public")))
+    (if (file-directory-p public-root)
+        (if (yes-or-no-p "🚀 Vuoi avviare il devserver Pelican (`make devserver`)?")
+            (let ((default-directory public-root))
+              (start-process-shell-command
+               "pelican-devserver" "*pelican-devserver*"
+               "make devserver")
+              (message "✅ Devserver avviato (vedi buffer *pelican-devserver*)."))
+          (message "❌ Avvio devserver annullato."))
+      (message "⚠️  Directory public non trovata: %s" public-root))))
+
+
+(defun edoc-stop-devserver ()
+  "Ferma il devserver di Pelican (uccide il processo relativo) previa conferma."
+  (interactive)
+  (let ((proc (get-process "pelican-devserver")))
+    (if proc
+        (if (yes-or-no-p "🛑 Vuoi fermare il devserver Pelican?")
+            (progn
+              (kill-process proc)
+              (message "🛑 Devserver fermato."))
+          (message "⏹ Operazione annullata."))
+      (message "ℹ️ Nessun devserver attivo trovato."))))
 
 (provide 'edoc-export)
