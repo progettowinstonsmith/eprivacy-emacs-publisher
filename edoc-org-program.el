@@ -12,6 +12,12 @@
 (defvar edoc--data-provvisoria nil
   "Data provvisoria da aggiungere ai file. Se nil usa la data corrente")
 
+(defconst edoc--mailinglist-extra-addresses
+  '("marcoc@marcoc.it"
+    "exedre@winstonsmith.org"
+    "segreteria@winstonsmith.org")
+  "Email che devono sempre essere incluse nella mailing list dei relatori.")
+
 (defun edoc--read-config-headers ()
   "Estrae tutte le intestazioni #+KEY: VALUE come alist (KEY . VALUE)."
   (save-excursion
@@ -340,6 +346,108 @@ Ogni proposta deve contenere la proprietà :ID:, altrimenti viene sollevato un e
 
     (switch-to-buffer-other-window buf)
     (goto-char (point-min))))
+
+(defun edoc--mailinglist-resolve-email (raw-email relatori)
+  "Restituisce l'indirizzo di contatto per RAW-EMAIL usando RELATORI."
+  (when (and raw-email (stringp raw-email))
+    (let* ((trimmed (string-trim raw-email)))
+      (when (and (not (string-empty-p trimmed))
+                 (not (string= trimmed "no-mail")))
+        (let* ((dati (assoc-default trimmed relatori))
+               (contact (and dati (cdr (assoc :E-CONTACT dati))))
+               (contact (and contact (string-trim contact)))
+               (primary (and dati (cdr (assoc :EMAIL dati))))
+               (primary (and primary (string-trim primary))))
+          (cond
+           ((and contact (not (string-empty-p contact))) contact)
+           ((and primary (not (string-empty-p primary))) primary)
+           (t trimmed)))))))
+
+(defun edoc--mailinglist-collect-emails (edoc)
+  "Raccoglie gli indirizzi email da EDOC per i relatori del programma."
+  (let* ((relatori (plist-get edoc :relatori))
+         (sessioni (plist-get edoc :sessioni))
+         (emails (make-hash-table :test #'equal)))
+    (cl-labels
+        ((add-email (raw)
+                    (let ((resolved (edoc--mailinglist-resolve-email raw relatori)))
+                      (when (and resolved (not (member resolved edoc-email-escluse)))
+                        (puthash resolved t emails))))
+         (add-from-talk (talk)
+                        (add-email (plist-get talk :email))
+                        (let* ((others (plist-get talk :other))
+                               (others (and others
+                                            (not (string-empty-p others))
+                                            (split-string others "," t "[[:space:]]+"))))
+                          (dolist (other others)
+                            (add-email other)))))
+      (dolist (session sessioni)
+        (dolist (talk (cdr session))
+          (add-from-talk talk)))
+      (dolist (extra edoc--mailinglist-extra-addresses)
+        (puthash extra t emails))
+      (let (result)
+        (maphash (lambda (key _value)
+                   (push key result))
+                 emails)
+        (sort result #'string-lessp)))))
+
+;;;###autoload
+(defun edoc-export-relatori-mailinglist ()
+  "Genera CSV e script per sincronizzare la mailing list dei relatori."
+  (interactive)
+  (unless (buffer-file-name)
+    (user-error "Questo comando richiede un file Org salvato su disco."))
+  (let* ((edoc (edoc-leggi-struttura-org))
+         (emails (edoc--mailinglist-collect-emails edoc))
+         (dir (file-name-directory (buffer-file-name)))
+         (base (file-name-base (buffer-file-name)))
+         (csv-name (format "%s-relatori-mailing-list.csv" base))
+         (sh-name (format "%s-sync-relatori-mailinglist.sh" base))
+         (csv-path (expand-file-name csv-name dir))
+         (script-path (expand-file-name sh-name dir)))
+    (with-temp-file csv-path
+      (insert "email\n")
+      (dolist (email emails)
+        (insert email "\n")))
+    (with-temp-file script-path
+      (insert "#!/usr/bin/env bash\n"
+              "set -euo pipefail\n\n"
+              "LIST=\"relatori@winstonsmith.org\"\n"
+              (format "CSV_NAME=\"%s\"\n" csv-name)
+              "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n"
+              "CSV_PATH=\"$SCRIPT_DIR/$CSV_NAME\"\n"
+              "CMD=(python3 /opt/mlmmjadmin/tools/maillist_admin.py subscribers \"$LIST\")\n\n"
+              "if [[ ${EUID:-$(id -u)} -ne 0 ]]; then\n"
+              "  echo \"Questo script deve essere eseguito con sudo.\" >&2\n"
+              "  exit 1\n"
+              "fi\n\n"
+              "if [[ ! -f $CSV_PATH ]]; then\n"
+              "  echo \"File CSV non trovato: $CSV_PATH\" >&2\n"
+              "  exit 1\n"
+              "fi\n\n"
+              "TMP_CURRENT=$(mktemp)\n"
+              "TMP_DESIRED=$(mktemp)\n"
+              "trap 'rm -f \"$TMP_CURRENT\" \"$TMP_DESIRED\"' EXIT\n\n"
+              "# Elenco attuale iscritti\n"
+              "${CMD[@]} list | tr -d '\\r' | sed 's/[[:space:]]*$//' | sed '/^$/d' | sort -u > \"$TMP_CURRENT\"\n\n"
+              "# Elenco desiderato dal CSV (salta l'intestazione)\n"
+              "tail -n +2 \"$CSV_PATH\" | tr -d '\\r' | sed 's/[[:space:]]*$//' | sed '/^$/d' | sort -u > \"$TMP_DESIRED\"\n\n"
+              "# Rimuovi chi non è più presente\n"
+              "comm -23 \"$TMP_CURRENT\" \"$TMP_DESIRED\" | while IFS= read -r email; do\n"
+              "  [[ -z $email ]] && continue\n"
+              "  echo \"Rimuovo: $email\"\n"
+              "  ${CMD[@]} remove \"$email\"\n"
+              "done\n\n"
+              "# Aggiungi i nuovi\n"
+              "comm -13 \"$TMP_CURRENT\" \"$TMP_DESIRED\" | while IFS= read -r email; do\n"
+              "  [[ -z $email ]] && continue\n"
+              "  echo \"Aggiungo: $email\"\n"
+              "  ${CMD[@]} add \"$email\"\n"
+              "done\n\n"
+              "echo \"Sincronizzazione completata.\"\n"))
+    (set-file-modes script-path #o755)
+    (message "CSV scritto in %s e script generato in %s" csv-path script-path)))
 
 ;;;###autoload
 (defun edoc-esporta-relatori-csv ()
