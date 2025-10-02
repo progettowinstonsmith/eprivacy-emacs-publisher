@@ -1185,6 +1185,15 @@ crea o aggiorna il file `.last` nella stessa directory con il timestamp corrente
   			     (shell-quote-argument (expand-file-name org-file)))))
   	    (if (= (shell-command cmd) 0)
   		(progn
+		   (with-current-buffer (find-file-noselect org-file)
+		     (goto-char (point-min))
+		     ;; Inserisce le keyword all'inizio del buffer Org
+		     (insert "#+OPTIONS: toc:nil\n")
+		     (insert "#+ENABLED: yes\n")
+		     (insert "#+LOCK: yes\n")
+		     (insert "#+STATUS: published\n\n")
+		     (save-buffer)
+		     (kill-buffer))
   		  (message "✅ Importato e convertito: %s → %s"
   			   (file-name-nondirectory file)
   			   (file-name-nondirectory org-file))
