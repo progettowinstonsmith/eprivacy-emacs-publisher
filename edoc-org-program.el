@@ -811,26 +811,89 @@ Es. 1GM → Giovedì 16 maggio 2025 - mattina"
 (defun edoc--genera-speakers-md (edoc)
   "Genera la sezione 'I moderatori' e 'I relatori' da EDOC."
   (let* ((relatori (plist-get edoc :relatori))
-         (num (cdr (assoc "Num" (plist-get edoc :vars))))
+         (vars (plist-get edoc :vars))
+         (config (plist-get edoc :config))
+         (num (or (cdr (assoc "Num" vars))
+                  (cdr (assoc 'EPRIVACY_N config))
+                  "XXXVI"))
          (relatori-filtrati
           (seq-filter (lambda (pair)
                         (not (member (car pair) edoc-email-escluse)))
-                      relatori)))
+                      relatori))
+         (proposte (plist-get edoc :proposte))
+         (talks-by-email (make-hash-table :test #'equal)))
+
+    ;; Costruisce la mappa email -> lista di interventi (label . titolo)
+    (dolist (entry proposte)
+      (let* ((props (cdr entry))
+             (title (cdr (assoc :TITOLO props)))
+             (label (or (cdr (assoc :LABEL props))
+                        (cdr (assoc :ID props))))
+             (display-title (or title label))
+             (kind (cdr (assoc :KIND props)))
+             (email (cdr (assoc :EMAIL props)))
+             (other-str (cdr (assoc :OTHER props)))
+             (others (and other-str (stringp other-str)
+                          (split-string other-str "," t "[[:space:]]+")))
+             (participants (delq nil (cons email others))))
+        (when (and label display-title
+                   (not (member kind '("opening" "closing" "coffee break" "end"))))
+          (dolist (addr participants)
+            (let ((addr (and addr (string-trim addr))))
+              (when (and addr (not (string-empty-p addr)))
+                (let ((current (gethash addr talks-by-email)))
+                  (puthash addr (cons (cons label display-title) current) talks-by-email))))))))
+
     (concat
      "\n\n## <a name=\"speakers\"></a>I relatori\n\n"
-     (mapconcat #'edoc--format-bio-markdown
+     (mapconcat (lambda (pair)
+                  (edoc--format-bio-markdown pair num talks-by-email))
                 (cl-sort relatori-filtrati #'string-lessp :key #'car)
                 "\n\n"))))
 
-(defun edoc--format-bio-markdown (pair)
-  "Formatta una bio in Markdown con ancoraggio."
+(defun edoc--format-bio-markdown (pair num talks-by-email)
+  "Formatta una bio in Markdown con ancoraggio, affiliazione e interventi."
   (let* ((email (car pair))
          (data (cdr pair))
          (label (or (cdr (assoc :LABEL data)) email))
          (fullname (or (cdr (assoc :FULLNAME data)) email))
-         (presentazione (or (cdr (assoc :PRESENTAZIONE data)) "")))
-    (format "### <a name='%s'></a>%s\n\n%s"
-            label fullname presentazione)))
+         (org (string-trim (or (cdr (assoc :ORG data)) "")))
+         (presentazione (string-trim-right (or (cdr (assoc :PRESENTAZIONE data)) "")))
+         (raw-talks (gethash email talks-by-email))
+         (talks (nreverse raw-talks)))
+
+    (cl-labels ((format-conjunction (items)
+                  (pcase items
+                    ('() "")
+                    (`(,only) only)
+                    (`(,first ,second) (format "%s e %s" first second))
+                    (_ (format "%s e %s"
+                                (string-join (butlast items) ", ")
+                                (car (last items)))))))
+      (let* ((talk-links
+              (mapcar (lambda (tpl)
+                        (let ((lbl (car tpl))
+                              (title (cdr tpl)))
+                          (format "[%s](/e-privacy-%s-programma.html#%s)"
+                                  title num lbl)))
+                      talks))
+             (talk-sentence
+              (when talk-links
+                (format "Ad e-privacy %s presenta %s."
+                        num (format-conjunction talk-links))))
+             (body-parts (delq nil (list (unless (string-empty-p presentazione)
+                                           presentazione)
+                                         talk-sentence)))
+             (header (format "### <a name='%s'></a>%s%s\n\n"
+                             label
+                             fullname
+                             (if (string-empty-p org)
+                                 ""
+                               (format " (%s)" org)))))
+        (concat header
+                (if body-parts
+                    (concat (string-join body-parts "\n\n") "\n")
+                  "")))))
 
 ;;;###autoload
 (defun edoc-esporta-interventi-md ()
