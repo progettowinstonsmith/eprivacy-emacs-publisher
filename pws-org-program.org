@@ -1213,7 +1213,7 @@ La distinzione tra moderatori e relatori è basata sulla proprietà `:RUOLO`, ch
         (concat header
                 (if body-parts
                     (concat (string-join body-parts "\n\n") "\n")
-                  "")))))
+                  ""))))))
 #+end_src
 
 ---
