@@ -904,7 +904,7 @@ Usa i dati contenuti in EDOC per arricchire i relatori e i link."
              (kind (plist-get talk :kind))
              (live? (plist-get talk :live?))
              (remote? (and (member kind '("talk" "roundtable")) (not live?)))
-             (ora-display (concat (or ora "") (if remote? " 📡" "")))
+             (ora-display (concat (or ora "") (if remote? "📡" "")))
              (email (plist-get talk :email))
              (altri (plist-get talk :other))
              (altri (if altri (split-string altri "," t "[[:space:]]+") nil))
