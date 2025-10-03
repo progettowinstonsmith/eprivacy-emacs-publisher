@@ -869,7 +869,8 @@ Es. 1GM → Giovedì 16 maggio 2025 - mattina"
 
 (defun edoc--format-intervento-md (pair relatori num)
   "Formatta un singolo intervento con titolo, speaker e abstract."
-  (let* ((id (cdr (assoc :ID (cdr pair))))
+  (let* ((props (cdr pair))
+         (id (cdr (assoc :ID props)))
          (email (cdr (assoc :EMAIL props)))
          (nome (cdr (assoc :NOME props)))
          (talk-label (cdr (assoc :LABEL props)))
