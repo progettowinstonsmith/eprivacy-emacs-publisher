@@ -1,0 +1,186 @@
+#+TITLE: Tutorial – Create a PWS Schedule from an Org Source
+#+AUTHOR: Codex Assistant
+#+LANGUAGE: en
+
+* Overview
+This tutorial walks through the complete workflow for producing the public PWS schedule (and the companion speaker/intervention files) starting from a curated Org document that contains talk metadata and speaker biographies.  The commands and conventions described here are implemented in =edoc-org-program.el= and are the same ones used by the dashboard in this repository.
+
+* Prerequisites
+- Recent GNU Emacs with Org Mode, plus this repository loaded in your =load-path=.
+- Access to the edition directory created by =edoc-dashboard= (typically under =edoc-production-dir/private/<edition>=).
+- The companion public site checkout (usually =edoc-production-dir/public=).  Exported Markdown files will be written there under the =#+EVENT_PATH:= configured for the edition.
+- Optional but recommended: enable =edoc-export-mode= globally (=M-x edoc-export-mode=) to get the =C-c e …= key bindings.
+
+* Prepare the Org Source
+The scheduler expects a single Org file per edition containing configuration keywords, the talk proposals, and the speaker biographies.  The parser is strict about heading structure and required properties.
+
+** Configuration block
+Provide the edition metadata at the top of the file using uppercase Org keywords.  These keys are required:
+
+#+begin_example
+#+BEGIN: 16/05/2025            ;; first conference day (dd/mm/yyyy)
+#+EDITION: Pisa                ;; short label used on site headers
+#+EPRIVACY_N: XXXVI            ;; running edition number
+#+EVENT_PATH: e-privacy-2025   ;; sub-directory under the public Pelican repo
+#+GIORNI: 2                    ;; number of days in the event
+#+LOCATION: Pisa, IT           ;; venue shown on the site
+#+NUM: 2025                    ;; year fragment for slugs (used in links)
+#+SUBTITLE: Privacy Reloaded   ;; optional tagline
+#+TITLE: E-Privacy 2025        ;; full title for the edition
+#+YEAR: 2025                   ;; displayed in dashboards and exports
+#+PELICAN_PATH: ~/Sites/pws    ;; optional: overrides $PELICAN_PATH
+#+end_example
+
+Place any introductory copy (welcome text, programme overview, etc.) between the keyword block and the first =* Proposte= heading.  The export pipeline automatically converts this prose to Markdown and inserts it at the start of =programma.md=.
+
+** Section =* Proposte=
+Organise the conference content under a top-level heading named exactly =* Proposte=.  Inside it:
+
+1. Create one second-level heading for each session.  The heading must start with the session code (e.g. =1GM= for day 1 morning, =1GP= day 1 afternoon, =2GM= day 2 morning) and may include a start time:
+
+   #+begin_example
+   ** 1GM 09:00
+   ** 1GP 15:00
+   #+end_example
+
+   If the time is omitted the parser defaults to 10:00 for =*M= (mattina) sessions and 15:00 for =*P= sessions.
+
+2. Add one third-level heading per talk or agenda item.  The heading must follow the pattern =[<session> <duration> <presence>] <main-email>=.  Example:
+
+   #+begin_example
+   *** [1GM 20 SI+] alice@example.org
+   #+end_example
+
+   - =<session>= should match one of the codes listed on the session heading
+   - =<duration>= is the slot length in minutes (only the numeric prefix is used)
+   - =<presence>= controls the =:LIVE:= property (use =SI= or =SI+= for in-person talks)
+   - =<main-email>= is the email identifier for the speaker and must have a matching biography
+
+3. Populate the property drawer for each talk.  The following keys are required in practice:
+
+   #+begin_example
+   :PROPERTIES:
+   :ID: 1GM-A1              ;; unique identifier
+   :EMAIL: alice@example.org
+   :NOME: Alice Rossi       ;; displayed in programme tables
+   :TITOLO: Privacy by Design
+   :DURATA: 20              ;; minutes, numeric preferred
+   :LIVE: SI+
+   :OTHER: bob@example.org, carol@example.org  ;; optional co-speaker emails
+   :LABEL: 1gm-rossi        ;; optional anchor override
+   :END:
+   #+end_example
+
+   Additional properties such as =:KEYWORDS:=, =:COMMENTI:=, or =:MULTI:= are preserved and can be reused later, but they are not required by the exporter.
+
+4. Write the talk abstract as the body text below the property drawer.  The entire subtree body is stored as =:DESCRIZIONE:= and copied into =interventi.md= and the confirmation mail.
+
+*Tips*
+- Set =:OTHER:= to a comma-separated list of emails to associate co-speakers with the talk.  All emails listed here must have a corresponding entry in the =* Relatori= section.
+- Breaks can be written as =*** [1GP 20 NO] CB= or =*** [1GP 20 NO] PAUSA= to trigger the "coffee break" formatting.  Titles containing "apertura" or "chiusura" are treated as opening/closing items.
+
+** Section =* Relatori=
+Provide one subtree per speaker under a top-level =* Relatori= heading.  Each entry **must** include the metadata needed to render bios and contact lists.
+
+#+begin_example
+* Relatori
+** alice@example.org
+:PROPERTIES:
+:EMAIL: alice@example.org
+:NOME: Alice
+:COGNOME: Rossi
+:ORG: Privacy Lab
+:E-CONTACT: alice@example.org   ;; address for the all-mails list
+:NTEL: +39 0123 456789
+:RUOLO: RELATORE                ;; use MOD… to mark moderators
+:LABEL: arossi                  ;; optional anchor override
+:END:
+
+Alice Rossi is a privacy engineer with...
+#+end_example
+
+Guidelines:
+- The subheading title is free-form but using the primary email keeps buffers easy to navigate.
+- The biography text goes in the body of the subtree.  It is exported verbatim to =speakers.md=.
+- If a speaker acts as a session moderator, set =:RUOLO:= to a value containing =MOD=.  You can also add per-session configuration keywords such as =#+MOD_1GM:= in the header block when you want to override it explicitly.
+
+* Validate the File
+Before exporting, run =M-x edoc-visualizza-edoc-org= while visiting the Org file.  This command parses the structure and opens a helper buffer with:
+- One table per session showing the computed start/end times.
+- A consolidated list of contact emails (filtered through =edoc-email-escluse= if configured).
+- Per-session tables listing speakers, emails, and phone numbers.
+- A raw Lisp dump of the parsed data (useful for debugging).
+
+If the command errors, read the message: common causes are missing =:ID:= properties, typos in session codes, or talk entries that reference speakers without biographies.
+
+You can also invoke =M-x edoc--check-required-config-keys= to ensure all mandatory =#+KEY:= headers are present.
+
+* Export the Schedule
+Once the source validates:
+
+1. Ensure the =PELICAN_PATH= is discoverable.  Either set the =#+PELICAN_PATH:= keyword in the Org file or export with the environment variable already defined.
+2. Visit the Org file and run one of:
+   - =C-c e t= (=edoc-esporta-tutti-md=) – generates =programma.md=, =speakers.md=, =interventi.md= and =mail.md= in the public repository.
+   - =C-c e p= (=edoc-esporta-programma-md=) – only the main schedule.
+   - =C-c e s= (=edoc-esporta-speakers-md=) – only biographies.
+   - =C-c e i= (=edoc-esporta-interventi-md=) – only talk abstracts.
+
+   The commands automatically create the target directories and, when run via the dashboard, also write companion MD5 checksum files.
+
+3. Review the generated Markdown under =public/<EVENT_PATH>/.=  The standard =edoc-dashboard= workflow then commits and publishes these files.
+
+* Appendix: Minimal Template
+Use this skeleton to bootstrap a new edition file:
+
+#+begin_src org
+#+TITLE: E-Privacy 2025 – Programma Org sorgente
+#+BEGIN: 16/05/2025
+#+EDITION: Pisa
+#+EPRIVACY_N: XXXVI
+#+EVENT_PATH: e-privacy-2025
+#+GIORNI: 2
+#+LOCATION: Pisa, IT
+#+NUM: 2025
+#+SUBTITLE: Privacy Reloaded
+#+TITLE: E-Privacy 2025
+#+YEAR: 2025
+
+Benvenutə alla XXXVI edizione di E-Privacy...
+
+* Proposte
+** 1GM 09:00
+*** [1GM 20 SI+] alice@example.org
+:PROPERTIES:
+:ID: 1GM-A1
+:EMAIL: alice@example.org
+:NOME: Alice Rossi
+:TITOLO: Privacy by Design
+:DURATA: 20
+:LIVE: SI+
+:END:
+
+Come proteggere i dati personali...
+
+** 1GP 15:00
+*** [1GP 20 NO] CB
+:PROPERTIES:
+:ID: 1GP-CB
+:TITOLO: Coffee break
+:DURATA: 20
+:LIVE: NO
+:END:
+
+* Relatori
+** alice@example.org
+:PROPERTIES:
+:EMAIL: alice@example.org
+:NOME: Alice
+:COGNOME: Rossi
+:ORG: Privacy Lab
+:E-CONTACT: alice@example.org
+:END:
+
+Alice Rossi è...
+#+end_src
+
+Fill in the remaining talks and biographies following the same pattern, validate with =edoc-visualizza-edoc-org=, then export with =edoc-esporta-tutti-md=.
