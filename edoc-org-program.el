@@ -908,7 +908,15 @@ Es. 1GM → Giovedì 16 maggio 2025 - mattina"
          (other-speakers (mapcar (lambda (addr)
                                    (funcall format-speaker addr nil))
                                  other-emails))
-         (speakers (string-join (delq nil (cons primary-speaker other-speakers)) ", ")))
+         (speaker-list (delq nil (cons primary-speaker other-speakers)))
+         (speakers
+          (pcase speaker-list
+            ('() "")
+            (`(,only) only)
+            (`(,first ,second) (format "%s e %s" first second))
+            (_ (format "%s e %s"
+                      (string-join (butlast speaker-list) ", ")
+                      (car (last speaker-list)))))))
     (unless (or (not titolo) (member kind '("opening" "closing")))
       (format "#### <a name=\"%s\"></a> %s%s\n%s\n\n%s"
               anchor titolo
