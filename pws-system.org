@@ -790,6 +790,8 @@ Punto di ingresso del sistema: caricamento pacchetti, definizione di `defcustom`
 #+BEGIN_SRC emacs-lisp :tangle edoc.el
 ;;; edoc.el --- Entry point PWS -*- lexical-binding: t -*-
 
+(require 'seq)
+
 (defgroup edoc nil
   "Sistema di pubblicazione EPrivacy."
   :group 'applications)
@@ -852,6 +854,45 @@ oppure `~/epub-system` se NAME è \"sw\"."
             (call-process "git" nil "*edoc-git*" t "pull" "--ff-only")
             (message "✔ Pull completato in %s" repo-path))
         (message "⚠ Repo %s non trovato, forse serve `edoc-clone-repos`?" repo-name)))))
+
+(defun edoc--list-subdirectories (dir)
+  "Restituisce le sottodirectory non nascoste presenti in DIR."
+  (when (file-directory-p dir)
+    (let ((entries (directory-files dir nil nil t)))
+      (seq-filter
+       (lambda (name)
+         (let ((full (expand-file-name name dir)))
+           (and (file-directory-p full)
+                (not (string-prefix-p "." name)))))
+       entries))))
+
+(defun edoc-select-edition ()
+  "Permette di scegliere interattivamente l'edizione corrente.
+Prima propone l'anno tra le directory esistenti in `public/content/`,
+poi la sessione (es. `summer`, `winter`). Aggiorna
+`edoc-current-edition-path` al percorso corrispondente nel repository
+privato."
+  (interactive)
+  (let* ((public-content (expand-file-name "content" (edoc--repo-path "public")))
+         (years (edoc--list-subdirectories public-content)))
+    (unless years
+      (user-error "Nessun anno trovato in %s" public-content))
+    (let* ((year (completing-read "Anno: " years nil t nil nil (car years)))
+           (year-dir (expand-file-name year public-content))
+           (sessions (edoc--list-subdirectories year-dir)))
+      (unless sessions
+        (user-error "Nessuna sessione trovata per l'anno %s" year))
+      (let* ((session (completing-read "Sessione: " sessions nil t nil nil (car sessions)))
+             (private-target (expand-file-name (format "content/%s/%s/" year session)
+                                               (edoc--repo-path "private")))
+             (public-target (expand-file-name (format "content/%s/%s/" year session)
+                                              (edoc--repo-path "public"))))
+        (unless (file-directory-p private-target)
+          (user-error "Directory privata inesistente: %s" private-target))
+        (unless (file-directory-p public-target)
+          (message "⚠ Directory pubblica mancante: %s" public-target))
+        (setq edoc-current-edition-path private-target)
+        (message "edoc-current-edition-path → %s" edoc-current-edition-path)))))
 
 (provide 'edoc)
 #+END_SRC
