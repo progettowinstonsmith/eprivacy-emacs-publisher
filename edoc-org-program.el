@@ -914,7 +914,7 @@ Es. 1GM → Giovedì 16 maggio 2025 - mattina"
         (concat header
                 (if body-parts
                     (concat (string-join body-parts "\n\n") "\n")
-                  "")))))
+                  ""))))))
 
 ;;;###autoload
 (defun edoc-esporta-interventi-md ()
