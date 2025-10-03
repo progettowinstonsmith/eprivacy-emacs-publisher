@@ -835,23 +835,28 @@ Es. 1GM → Giovedì 16 maggio 2025 - mattina"
              (other-str (cdr (assoc :OTHER props)))
              (others (and other-str (stringp other-str)
                           (split-string other-str "," t "[[:space:]]+")))
-             (participants (delq nil (cons email others))))
+             (raw-participants (delq nil (cons email others)))
+             (participants (seq-filter (lambda (addr)
+                                         (and addr (not (string-empty-p addr))))
+                                       (mapcar (lambda (addr)
+                                                 (and addr (string-trim addr)))
+                                               raw-participants))))
         (when (and label display-title
                    (not (member kind '("opening" "closing" "coffee break" "end"))))
           (dolist (addr participants)
-            (let ((addr (and addr (string-trim addr))))
-              (when (and addr (not (string-empty-p addr)))
-                (let ((current (gethash addr talks-by-email)))
-                  (puthash addr (cons (cons label display-title) current) talks-by-email))))))))
+            (let* ((coauthors (seq-remove (lambda (p) (string= p addr)) participants))
+                   (current (gethash addr talks-by-email))
+                   (entry-data (list label display-title coauthors)))
+              (puthash addr (cons entry-data current) talks-by-email))))))
 
     (concat
      "\n\n## <a name=\"speakers\"></a>I relatori\n\n"
      (mapconcat (lambda (pair)
-                  (edoc--format-bio-markdown pair num talks-by-email))
+                  (edoc--format-bio-markdown pair num talks-by-email relatori))
                 (cl-sort relatori-filtrati #'string-lessp :key #'car)
                 "\n\n"))))
 
-(defun edoc--format-bio-markdown (pair num talks-by-email)
+(defun edoc--format-bio-markdown (pair num talks-by-email relatori)
   "Formatta una bio in Markdown con ancoraggio, affiliazione e interventi."
   (let* ((email (car pair))
          (data (cdr pair))
@@ -872,10 +877,26 @@ Es. 1GM → Giovedì 16 maggio 2025 - mattina"
                                 (car (last items)))))))
       (let* ((talk-links
               (mapcar (lambda (tpl)
-                        (let ((lbl (car tpl))
-                              (title (cdr tpl)))
-                          (format "[%s](/e-privacy-%s-programma.html#%s)"
-                                  title num lbl)))
+                        (let* ((lbl (nth 0 tpl))
+                               (title (nth 1 tpl))
+                               (coauthors (nth 2 tpl))
+                               (talk-link (format "[%s](/e-privacy-%s-programma.html#%s)"
+                                                  title num lbl))
+                               (coauthor-links
+                                (delq nil
+                                      (mapcar (lambda (addr)
+                                                (let* ((pdata (assoc addr relatori))
+                                                       (pinfo (cdr pdata))
+                                                       (pname (or (and pinfo (cdr (assoc :FULLNAME pinfo))) addr))
+                                                       (plabel (or (and pinfo (cdr (assoc :LABEL pinfo))) addr)))
+                                                  (when pname
+                                                    (format "[%s](#%s)" pname plabel))))
+                                              coauthors))))
+                          (if coauthor-links
+                              (format "%s con %s"
+                                      talk-link
+                                      (format-conjunction coauthor-links))
+                            talk-link)))
                       talks))
              (talk-sentence
               (when talk-links
