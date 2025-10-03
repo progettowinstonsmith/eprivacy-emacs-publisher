@@ -902,7 +902,7 @@ oppure `~/epub-system` se NAME è \"sw\"."
                 (push (cons key val) result)))
              (t (setq continue nil))))
           (forward-line 1))
-        (nreverse result))))
+        (nreverse result)))))
 
 (defun edoc--find-session-markdown (year session public-dir)
   "Trova il file Markdown principale per l'anno YEAR e la SESSION dentro PUBLIC-DIR."
@@ -918,7 +918,7 @@ oppure `~/epub-system` se NAME è \"sw\"."
                                        (string-match-p year-pattern (downcase f)))
                                      files)))
         (when candidates
-          (expand-file-name (car candidates) dir))))))
+          (expand-file-name (car candidates) dir)))))))
 
 (defun edoc--write-vars-template (dest-file keys-alist front-alist)
   "Scrive DEST-FILE usando le KEYWORD disponibili.
@@ -936,7 +936,7 @@ Markdown."
         (let* ((val (or (cdr (assoc key front))
                         (cdr (assoc key base))
                         "")))
-          (insert (format "#+%s: %s\n" key val))))))
+          (insert (format "#+%s: %s\n" key val)))))))
 
 (defun edoc-select-edition ()
   "Permette di scegliere interattivamente l'edizione corrente.
