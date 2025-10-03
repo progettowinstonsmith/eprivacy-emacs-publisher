@@ -1,6 +1,7 @@
 ;;; edoc.el --- Entry point PWS -*- lexical-binding: t -*-
 
 (require 'seq)
+(require 'subr-x)
 
 (defgroup edoc nil
   "Sistema di pubblicazione EPrivacy."
@@ -76,6 +77,77 @@ oppure `~/epub-system` se NAME è \"sw\"."
                 (not (string-prefix-p "." name)))))
        entries))))
 
+(defun edoc--read-vars-keywords (vars-file)
+  "Restituisce (KEYS . ALIST) leggendo tutte le keyword da VARS-FILE."
+  (when (file-readable-p vars-file)
+    (with-temp-buffer
+      (insert-file-contents vars-file)
+      (goto-char (point-min))
+      (let (keys pairs)
+        (while (re-search-forward "^#\\+\\([A-Z0-9_]+\\):\\s-*\\(.*\\)$" nil t)
+          (let ((key (match-string 1))
+                (val (string-trim (match-string 2))))
+            (push key keys)
+            (push (cons key val) pairs)))
+        (cons (nreverse (delete-dups (nreverse keys)))
+              (nreverse pairs))))))
+
+(defun edoc--read-front-matter (file)
+  "Parsa il blocco iniziale `Chiave: Valore` da FILE Markdown."
+  (when (file-readable-p file)
+    (with-temp-buffer
+      (insert-file-contents file)
+      (goto-char (point-min))
+      (let (result continue)
+        (setq continue t)
+        (while (and continue (not (eobp)))
+          (let ((line (buffer-substring-no-properties
+                       (line-beginning-position) (line-end-position))))
+            (cond
+             ((string-match "^\\s*$" line)
+              (setq continue nil))
+             ((string-match "^\\([A-Za-z0-9_ -]+\\):\\s-*\\(.*\\)$" line)
+              (let ((key (upcase (replace-regexp-in-string " " "_" (match-string 1 line))))
+                    (val (string-trim (match-string 2 line))))
+                (push (cons key val) result)))
+             (t (setq continue nil))))
+          (forward-line 1))
+        (nreverse result))))
+
+(defun edoc--find-session-markdown (year session public-dir)
+  "Trova il file Markdown principale per l'anno YEAR e la SESSION dentro PUBLIC-DIR."
+  (let* ((dir public-dir)
+         (files (when (file-directory-p dir)
+                  (directory-files dir nil "\\.md$" t)))
+         (cfp (seq-find (lambda (f) (string= f "cfp.md")) files)))
+    (cond
+     (cfp (expand-file-name cfp dir))
+     (files
+      (let* ((year-pattern (regexp-quote year))
+             (candidates (seq-filter (lambda (f)
+                                       (string-match-p year-pattern (downcase f)))
+                                     files)))
+        (when candidates
+          (expand-file-name (car candidates) dir))))))
+
+(defun edoc--write-vars-template (dest-file keys-alist front-alist)
+  "Scrive DEST-FILE usando le KEYWORD disponibili.
+KEYS-ALIST è una cons cell (KEYS . ALIST) letta da un `vars.org`
+esistente; FRONT-ALIST contiene le coppie (KEY . VAL) trovate nel
+Markdown."
+  (let* ((keys-source (car-safe keys-alist))
+         (base (cdr keys-alist))
+         (front front-alist)
+         (keys (delete-dups (copy-sequence (or keys-source (mapcar #'car front))))))
+    (unless keys
+      (user-error "Impossibile determinare le chiavi per vars.org"))
+    (with-temp-file dest-file
+      (dolist (key keys)
+        (let* ((val (or (cdr (assoc key front))
+                        (cdr (assoc key base))
+                        "")))
+          (insert (format "#+%s: %s\n" key val))))))
+
 (defun edoc-select-edition ()
   "Permette di scegliere interattivamente l'edizione corrente.
 Prima propone l'anno tra le directory esistenti in `public/content/`,
@@ -96,12 +168,26 @@ privato."
              (private-target (expand-file-name (format "content/%s/%s/" year session)
                                                (edoc--repo-path "private")))
              (public-target (expand-file-name (format "content/%s/%s/" year session)
-                                              (edoc--repo-path "public"))))
+                                              (edoc--repo-path "public")))
+             (previous-path edoc-current-edition-path)
+             (previous-vars (edoc--read-vars-keywords
+                             (expand-file-name "vars.org" previous-path)))
+             (front-matter (edoc--read-front-matter
+                            (or (edoc--find-session-markdown year session public-target)
+                                (expand-file-name "cfp.md" public-target)))))
         (unless (file-directory-p public-target)
           (message "⚠ Directory pubblica mancante: %s" public-target))
         (unless (file-directory-p private-target)
           (make-directory private-target t)
-          (message "Creata directory privata: %s" private-target))
+          (message "Creata directory privata: %s" private-target)
+          (let ((dest-vars (expand-file-name "vars.org" private-target)))
+            (if (or (car-safe previous-vars) front-matter)
+                (progn
+                  (edoc--write-vars-template dest-vars (or previous-vars (cons nil nil)) front-matter)
+                  (message "Creato %s" dest-vars))
+              (with-temp-file dest-vars
+                (insert "#+TITLE: TODO\n"))
+              (message "Creato %s (vuoto)" dest-vars))))
         (setq edoc-current-edition-path private-target)
         (message "edoc-current-edition-path → %s" edoc-current-edition-path)))))
 
