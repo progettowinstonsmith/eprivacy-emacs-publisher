@@ -97,10 +97,11 @@ privato."
                                                (edoc--repo-path "private")))
              (public-target (expand-file-name (format "content/%s/%s/" year session)
                                               (edoc--repo-path "public"))))
-        (unless (file-directory-p private-target)
-          (user-error "Directory privata inesistente: %s" private-target))
         (unless (file-directory-p public-target)
           (message "⚠ Directory pubblica mancante: %s" public-target))
+        (unless (file-directory-p private-target)
+          (make-directory private-target t)
+          (message "Creata directory privata: %s" private-target))
         (setq edoc-current-edition-path private-target)
         (message "edoc-current-edition-path → %s" edoc-current-edition-path)))))
 
