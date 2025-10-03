@@ -1,6 +1,7 @@
 ;;; edoc-org-program.el --- Creazione programma e-privacy da documento org -*- lexical-binding: t -*-
 
 (require 'ox-md)
+(require 'cl-lib)
 
 (defcustom edoc-email-escluse
   nil
@@ -663,18 +664,30 @@ Usa i dati contenuti in EDOC per arricchire i relatori e i link."
     ;; Risultato finale
     (string-join (nreverse out) "\n")))
 
+(defun edoc--relatore-confirmation-marker (dati)
+  "Restituisce un indicatore se il relatore in DATI non ha confermato."
+  (let* ((raw (and dati (cdr (assoc :CONFERMA dati))))
+         (val (and raw (stringp raw) (string-trim raw))))
+    (if (and val (string-equal (downcase val) "t"))
+        ""
+      ".")))
+
 (defun edoc--format-relatore (email relatori num)
   "Restituisce un link HTML al relatore identificato da EMAIL oppure solo il nome."
   (if (equal email "no-mail")
       ""
     (let* ((dati (assoc-default email relatori))
-           (nome (or (cdr (assoc :FULLNAME  dati)) email))
-           (org (cdr (assoc :ORG  dati)))
-           (org (if (= (length org) 0) "" (format " (%s)" org)))
+           (nome (or (cdr (assoc :FULLNAME dati)) email))
+           (marker (edoc--relatore-confirmation-marker dati))
+           (nome+marker (concat nome marker))
+           (org (cdr (assoc :ORG dati)))
+           (org (if (and org (> (length org) 0))
+                    (format " (%s)" org)
+                  ""))
            (label (cdr (assoc :LABEL dati))))
       (if edoc--generate-links-in-export
-          (format "<a href=\"/e-privacy-%s-relatori.html#%s\">%s%s</a>" num label nome org)
-        (format "%s%s" nome org)))))
+          (format "<a href=\"/e-privacy-%s-relatori.html#%s\">%s%s</a>" num label nome+marker org)
+        (format "%s%s" nome+marker org)))))
 
 (defun --edoc--format-relatore (email relatori num)
   "Restituisce un link HTML al relatore identificato da EMAIL."
