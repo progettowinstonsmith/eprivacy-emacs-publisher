@@ -106,7 +106,7 @@ Ogni elemento di PAIRS è una cons cell (CURRENT . BACKUP)."
         (goto-char (point-min))
         (diff-mode)
         (setq buffer-read-only t))
-      (display-buffer buffer))))
+      (display-buffer buffer)))))
 
 (defun edoc--merge-markdown-into-org (org-file markdown-backup)
   "Avvia una sessione di merge tra ORG-FILE e MARKDOWN-BACKUP convertito in Org."
