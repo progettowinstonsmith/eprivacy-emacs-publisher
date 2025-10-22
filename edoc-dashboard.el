@@ -219,7 +219,8 @@
   	(define-key map (kbd "!") #'edoc-open-public-shell)
     	(define-key map (kbd "C") #'edoc-dashboard-create-org-file)
       	(define-key map (kbd "M") #'edoc-dashboard-open-md)
-      	(define-key map (kbd "P") #'edoc-dashboard-publish-all)
+	(define-key map (kbd "P") #'edoc-dashboard-publish-all)
+	(define-key map (kbd "B") #'edoc-dashboard-sync-markdown)
 	(use-local-map map))
       
       (goto-char (point-min))
@@ -564,6 +565,7 @@
     ("C" "Crea nuovo file org" edoc-dashboard-create-org-file)
     ("p" "Pubblica file corrente" edoc-dashboard-publish-file)
     ("P" "Pubblica tutto" edoc-dashboard-publish-all)
+    ("B" "Backup + diff Markdown" edoc-dashboard-sync-markdown)
     ("I" "Importa da public" edoc-import-markdown)]
 
    ["📡 Git"

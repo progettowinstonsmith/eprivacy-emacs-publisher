@@ -20,6 +20,134 @@
   (seq-some #'file-exists-p (edoc--org-product-paths file)))
 
 
+(defun edoc--make-markdown-backup (path)
+  "Copia PATH in un backup timestamped nella stessa directory e restituisce il nuovo path.
+Restituisce nil se PATH non esiste."
+  (when (file-exists-p path)
+    (let* ((dir (file-name-directory path))
+           (stamp (format-time-string "%Y%m%d-%H%M%S"))
+           (backup (expand-file-name
+                    (format "%s.%s.md" (file-name-base path) stamp)
+                    dir)))
+      (copy-file path backup t)
+      backup)))
+
+(defun edoc--make-org-backup (path)
+  "Crea un backup timestamped del file Org in PATH e restituisce il nuovo path.
+Restituisce nil se PATH non esiste."
+  (when (file-exists-p path)
+    (let* ((dir (file-name-directory path))
+           (stamp (format-time-string "%Y%m%d-%H%M%S"))
+           (backup (expand-file-name
+                    (format "%s.%s.org" (file-name-base path) stamp)
+                    dir)))
+      (copy-file path backup t)
+      backup)))
+
+(defun edoc--export-org-file-noninteractive (file)
+  "Esporta FILE in Markdown senza prompt, restituendo i path dei prodotti generati."
+  (let* ((product-paths (edoc--org-product-paths file))
+         (export-label (edoc--read-org-keyword-value file "PWS_EXPORT")))
+    (dolist (path product-paths)
+      (let ((dir (file-name-directory path)))
+        (unless (file-directory-p dir)
+          (make-directory dir t))))
+    (cond
+     (export-label
+      (let* ((fun-name (intern (format "edoc-export-org-%s-to-markdown" export-label))))
+        (unless (fboundp fun-name)
+          (user-error "Funzione export '%s' non trovata." fun-name))
+        (funcall fun-name file (car product-paths))))
+     (t
+      (let* ((vars-path (expand-file-name "vars.org" edoc-current-edition-path))
+             (options-path (expand-file-name "options.org" edoc-current-edition-path))
+             (vars (edoc--setup-synth-vars
+                    (edoc--combine-org-vars file)
+                    edoc--synth-rules-vars
+                    file))
+             (header (edoc--org-vars-to-md-header vars))
+             (org-source (with-temp-buffer
+                           (when (file-exists-p options-path)
+                             (insert-file-contents options-path))
+                           (insert-file-contents file)
+                           (buffer-string)))
+             (exported-md (org-export-string-as org-source 'md t)))
+        (with-temp-file (car product-paths)
+          (insert header)
+          (insert exported-md)))))
+    (edoc--write-md5-file product-paths)
+    product-paths))
+
+(defun edoc--diff-markdown-pairs (pairs)
+  "Mostra in un buffer dedicato le differenze tra le coppie di file PAIRS.
+Ogni elemento di PAIRS è una cons cell (CURRENT . BACKUP)."
+  (cond
+   ((null pairs)
+    nil)
+   ((not (executable-find "diff"))
+    (message "⚠️ Utility 'diff' non disponibile: confronto saltato."))
+   (t
+    (let ((buffer (get-buffer-create "*edoc-markdown-diff*")))
+      (with-current-buffer buffer
+        (setq buffer-read-only nil)
+        (erase-buffer)
+        (insert (format "Diff markdown generati %s\n\n" (format-time-string "%Y-%m-%d %H:%M")))
+        (dolist (pair pairs)
+          (let* ((current (car pair))
+                 (backup (cdr pair))
+                 (label (file-name-nondirectory current))
+                 (exit-code (call-process "diff" nil t nil "-u" backup current)))
+            (insert (format "## %s (backup: %s)\n" label (file-name-nondirectory backup)))
+            (pcase exit-code
+              (0 (insert "Nessuna differenza.\n\n"))
+              (1 (insert "\n"))
+              (_ (insert (format "[diff fallita: codice %s]\n\n" exit-code))))
+            (insert "\n")))
+        (goto-char (point-min))
+        (diff-mode)
+        (setq buffer-read-only t))
+      (display-buffer buffer))))))
+
+(defun edoc--merge-markdown-into-org (org-file markdown-backup)
+  "Avvia una sessione di merge tra ORG-FILE e MARKDOWN-BACKUP convertito in Org."
+  (if (not (executable-find "pandoc"))
+      (message "❌ Impossibile convertire: pandoc non trovato nel PATH.")
+    (let* ((temp-org (make-temp-file "edoc-md-merge" nil ".org"))
+           (exit-code (call-process "pandoc" nil nil nil
+                                    "-f" "markdown" "-t" "org"
+                                    markdown-backup "-o" temp-org)))
+      (if (not (zerop exit-code))
+          (message "❌ Conversione pandoc fallita (codice %s)." exit-code)
+        (let ((org-backup (edoc--make-org-backup org-file)))
+          (when org-backup
+            (message "🗃 Backup Org salvato in %s" (file-name-nondirectory org-backup)))
+          (ediff-merge-files org-file temp-org))))))
+
+(defun edoc-dashboard-sync-markdown ()
+  "Esegue backup, rigenerazione e diff del Markdown associato al file Org corrente.
+Su richiesta avvia un merge per riportare le differenze nell'Org originale."
+  (interactive)
+  (let ((file (get-text-property (point) 'edoc-file)))
+    (unless file
+      (user-error "Posizionati su una riga con un file Org."))
+    (when (edoc--get-org-lock file)
+      (user-error "Il file è bloccato. Sbloccalo prima di proseguire."))
+    (let* ((product-paths (edoc--org-product-paths file))
+           (pairs (mapcar (lambda (path)
+                            (let ((backup (edoc--make-markdown-backup path)))
+                              (cons path backup)))
+                          product-paths)))
+      (edoc--export-org-file-noninteractive file)
+      (let ((existing (seq-filter (lambda (pair) (cdr pair)) pairs)))
+        (if existing
+            (edoc--diff-markdown-pairs existing)
+          (message "✅ Markdown rigenerato (nessun file precedente da confrontare)."))
+        (when (and existing
+                   (yes-or-no-p "Vuoi avviare il merge per riportare le modifiche nell'Org?"))
+          (edoc--merge-markdown-into-org file (cdar existing))))
+      (edoc-dashboard-refresh))))
+
+
 (defun edoc--read-org-keyword-value (file key)
   "Restituisce il valore della keyword `#+KEY:` nel FILE, oppure nil se assente."
   (when (file-readable-p file)
