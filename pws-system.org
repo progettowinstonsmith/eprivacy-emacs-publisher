@@ -1138,7 +1138,7 @@ Su richiesta avvia un merge per riportare le differenze nell'Org originale."
                    (yes-or-no-p "Vuoi avviare il merge per riportare le modifiche nell'Org?"))
           (edoc--merge-markdown-into-org file (cdar existing))))
       (edoc-dashboard-refresh))))
-
+#+end_src
 
 ** Sincronizzazione Markdown dall'Org corrente (fuori dal dashboard)
 Implementa lo stesso flusso di "backup → rigenerazione → diff" ma utilizzabile da qualsiasi
@@ -1179,7 +1179,7 @@ Passi:
                    (yes-or-no-p "Vuoi avviare il merge per riportare le modifiche nell'Org?"))
           ;; Usa il primo backup disponibile per avviare il merge assistito
           (edoc--merge-markdown-into-org file (cdar existing))))))
-#+END_SRC
+
 
 
 (defun edoc--read-org-keyword-value (file key)
