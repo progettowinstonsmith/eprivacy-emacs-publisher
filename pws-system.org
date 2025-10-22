@@ -1178,7 +1178,7 @@ Passi:
         (when (and existing
                    (yes-or-no-p "Vuoi avviare il merge per riportare le modifiche nell'Org?"))
           ;; Usa il primo backup disponibile per avviare il merge assistito
-          (edoc--merge-markdown-into-org file (cdar existing))))))
+          (edoc--merge-markdown-into-org file (cdar existing)))))))
 
 
 
