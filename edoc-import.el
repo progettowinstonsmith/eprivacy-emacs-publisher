@@ -110,7 +110,7 @@
 (defun edoc--org-product-paths (file)
   "Restituisce la lista completa dei path dei file Markdown da produrre per FILE Org.
 
-  Se il file contiene la keyword `#+PRODUCT:`, i nomi elencati vengono usati.
+  Se il file contiene la keyword `#+yPRODUCT:`, i nomi elencati vengono usati.
   Altrimenti viene usato il nome base del file con estensione `.md`, nella directory public."
   (let* ((base (file-name-base file))
          (relpath (file-relative-name edoc-current-edition-path

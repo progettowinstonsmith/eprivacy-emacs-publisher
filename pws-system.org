@@ -1,6 +1,5 @@
 #+TITLE: PWS – Sistema di pubblicazione EPrivacy
 #+AUTHOR: Emmanuele Somma
-#+PROPERTY: header-args :tangle no
 #+OPTIONS: toc:nil num:nil
 
 * Introduzione
@@ -20,7 +19,6 @@ Le funzionalità principali comprendono:
 - Generazione dei file finali (markdown/org/export)
 
 * edoc-vars.el - Parsing dei file vars.org
-#+PROPERTY: header-args:emacs-lisp :tangle edoc-vars.el
 
 Questo modulo si occupa di caricare e analizzare il file `vars.org` contenente i metadati
 principali dell’edizione corrente. Restituisce un alist o plist con le informazioni estratte.
@@ -110,7 +108,6 @@ principali dell’edizione corrente. Restituisce un alist o plist con le informa
 
 
 * edoc-git.el - Stato dei repository Git
-#+PROPERTY: header-args:emacs-lisp :tangle edoc-git.el
 
 Questo modulo gestisce il fetch, lo stato dei branch, l’autore e la data dell’ultimo commit,
 e il controllo di divergenza tra locale e remoto per i due repository.
@@ -149,7 +146,6 @@ e il controllo di divergenza tra locale e remoto per i due repository.
 #+END_SRC
 
 * edoc-dashboard.el - Interfaccia testuale
-#+PROPERTY: header-args:emacs-lisp :tangle edoc-dashboard.el
 
 Responsabile della visualizzazione dell’interfaccia principale: titolo, repo status,
 fase corrente, lista documenti, e informazioni evento.
@@ -784,7 +780,6 @@ fase corrente, lista documenti, e informazioni evento.
 
 
 * edoc.el - Entry point del sistema
-#+PROPERTY: header-args:emacs-lisp :tangle edoc.el
 
 Punto di ingresso del sistema: caricamento pacchetti, definizione di `defcustom` e variabili globali, gestione dell’edizione corrente.
 
@@ -988,7 +983,6 @@ privato."
 
 
 * edoc-import.el - Importazione Markdown → Org
-#+PROPERTY: header-args:emacs-lisp :tangle edoc-import.el
 
 Questa sezione definisce una funzione interattiva per importare un file `.md` dal repository pubblico (`public`)
 alla directory corrispondente del repository privato (`private`), convertendolo in Org Mode tramite `pandoc`.
@@ -1104,7 +1098,7 @@ Ogni elemento di PAIRS è una cons cell (CURRENT . BACKUP)."
         (goto-char (point-min))
         (diff-mode)
         (setq buffer-read-only t))
-      (display-buffer buffer))))))
+      (display-buffer buffer))))
 
 (defun edoc--merge-markdown-into-org (org-file markdown-backup)
   "Avvia una sessione di merge tra ORG-FILE e MARKDOWN-BACKUP convertito in Org."
@@ -1550,7 +1544,7 @@ crea o aggiorna il file `.last` nella stessa directory con il timestamp corrente
 (defun edoc--org-product-paths (file)
   "Restituisce la lista completa dei path dei file Markdown da produrre per FILE Org.
 
-  Se il file contiene la keyword `#+PRODUCT:`, i nomi elencati vengono usati.
+  Se il file contiene la keyword `#+yPRODUCT:`, i nomi elencati vengono usati.
   Altrimenti viene usato il nome base del file con estensione `.md`, nella directory public."
   (let* ((base (file-name-base file))
          (relpath (file-relative-name edoc-current-edition-path
