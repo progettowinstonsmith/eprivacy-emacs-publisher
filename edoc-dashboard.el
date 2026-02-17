@@ -1,3 +1,4 @@
+;; -*- lexical-binding: t; -*-
 
 (require 'edoc-vars)
 (require 'edoc-git)
