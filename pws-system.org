@@ -1047,9 +1047,22 @@ NEW-VARS è un alist di (KEY . VALUE) (es. ((\"NUM\" . \"XXXVII\") (\"TITLE\" . 
           (insert (format "\n#+%s: %s" key value)))))
     (write-file dest-vars-path)))
 
+(defun edoc--copy-template-files (src-dir dest-dir)
+  "Copia i file template da SRC-DIR a DEST-DIR se non esistono già.
+File copiati: proposta.org, proposta-relatore.org, proposta-relatore-add.org, arrivare.org"
+  (let ((template-files '("proposta.org" "proposta-relatore.org" "proposta-relatore-add.org" "arrivare.org")))
+    (dolist (file template-files)
+      (let ((src-path (expand-file-name file src-dir))
+            (dest-path (expand-file-name file dest-dir)))
+        (when (file-exists-p src-path)
+          (unless (file-exists-p dest-path)
+            (copy-file src-path dest-path)
+            (message "Copiato: %s" file)))))))
+
 (defun edoc-create-new-edition-wizard ()
   "Wizard interattivo per creare una nuova edizione completa.
-Chiede venue, sessioni, numero, e popola vars.org."
+Chiede venue, sessioni, numero, e popola vars.org.
+Copia file template da edizione precedente."
   (interactive)
   (let* ((path (expand-file-name edoc-current-edition-path))
          (parts (split-string path "/" t))
@@ -1101,6 +1114,9 @@ Chiede venue, sessioni, numero, e popola vars.org."
                         ("LOCK" . ""))))
         (edoc--copy-vars-org current-vars-path dest-vars-path new-vars)
         (message "Creato vars.org con metadati aggiornati"))
+      
+      ;; Copia file template dalla edizione precedente
+      (edoc--copy-template-files path private-target)
       
       ;; Crea options.org minimo
       (let ((options-path (expand-file-name "options.org" private-target)))
