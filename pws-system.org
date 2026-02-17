@@ -1059,6 +1059,44 @@ File copiati: proposta.org, proposta-relatore.org, proposta-relatore-add.org, ar
             (copy-file src-path dest-path)
             (message "Copiato: %s" file)))))))
 
+(defun edoc-copy-template-files ()
+  "Copia i file template dalla edizione corrente a un'altra edizione.
+File: proposta.org, proposta-relatore.org, proposta-relatore-add.org, arrivare.org"
+  (interactive)
+  (let* ((src-path (expand-file-name edoc-current-edition-path))
+         (public-content (expand-file-name "content" (edoc--repo-path "public")))
+         (years (edoc--list-subdirectories public-content)))
+    (unless years
+      (user-error "Nessun anno trovato in %s" public-content))
+    
+    (let* ((year (completing-read "Anno destinazione: " years nil t nil nil (car years)))
+           (year-dir (expand-file-name year public-content))
+           (sessions (edoc--list-subdirectories year-dir)))
+      (unless sessions
+        (user-error "Nessuna sessione trovata per l'anno %s" year))
+      
+      (let* ((session (completing-read "Sessione destinazione: " sessions nil t nil nil (car sessions)))
+             (dest-path (expand-file-name (format "content/%s/%s/" year session) (edoc--repo-path "private"))))
+        
+        (unless (file-directory-p dest-path)
+          (user-error "Directory destinazione non esiste: %s" dest-path))
+        
+        (edoc--copy-template-files src-path dest-path)
+        (message "Copia completata da %s a %s/%s" 
+                 (file-name-directory (directory-file-path src-path)) year session)))))
+
+(defun edoc--copy-template-files (src-dir dest-dir)
+  "Copia i file template da SRC-DIR a DEST-DIR se non esistono già.
+File copiati: proposta.org, proposta-relatore.org, proposta-relatore-add.org, arrivare.org"
+  (let ((template-files '("proposta.org" "proposta-relatore.org" "proposta-relatore-add.org" "arrivare.org")))
+    (dolist (file template-files)
+      (let ((src-path (expand-file-name file src-dir))
+            (dest-path (expand-file-name file dest-dir)))
+        (when (file-exists-p src-path)
+          (unless (file-exists-p dest-path)
+            (copy-file src-path dest-path)
+            (message "Copiato: %s" file)))))))
+
 (defun edoc-create-new-edition-wizard ()
   "Wizard interattivo per creare una nuova edizione completa.
 Chiede venue, sessioni, numero, e popola vars.org.
