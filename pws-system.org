@@ -1167,6 +1167,23 @@ Copia file template da edizione precedente."
       (message "edoc-current-edition-path -> %s" edoc-current-edition-path)
       (message "Nuova edizione %s/%s pronta!" next-year next-session))))
 
+(defun edoc-save-current-edition ()
+  "Salva l'edizione corrente come edizione di lavoro nel launcher."
+  (interactive)
+  (let* ((init-file (expand-file-name "~/epub-system/init-dashboard.el"))
+         (current-path edoc-current-edition-path)
+         (content (with-temp-buffer
+                    (insert-file-contents init-file)
+                    (goto-char (point-min))
+                    (if (re-search-forward "^(setq edoc-current-edition-path \".*\")$" nil t)
+                        (progn
+                          (replace-match (format "(setq edoc-current-edition-path \"%s\")" current-path))
+                          (buffer-string))
+                      (user-error "Non trovo la riga edoc-current-edition-path in %s" init-file)))))
+    (with-temp-file init-file
+      (insert content))
+    (message "Edizione di lavoro salvata: %s" current-path)))
+
 (provide 'edoc)
 #+END_SRC
 
