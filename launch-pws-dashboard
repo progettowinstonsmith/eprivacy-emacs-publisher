@@ -1,0 +1,4 @@
+#!/bin/bash
+# Launcher per PWS Dashboard in Emacs (terminale, no window)
+
+emacs -Q -nw -l ~/epub-system/init-dashboard.el
