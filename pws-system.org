@@ -1082,8 +1082,7 @@ File: proposta.org, proposta-relatore.org, proposta-relatore-add.org, arrivare.o
           (user-error "Directory destinazione non esiste: %s" dest-path))
         
         (edoc--copy-template-files src-path dest-path)
-        (message "Copia completata da %s a %s/%s" 
-                 (file-name-directory (directory-file-path src-path)) year session)))))
+        (message "Copia completata a %s/%s" year session)))))
 
 (defun edoc--copy-template-files (src-dir dest-dir)
   "Copia i file template da SRC-DIR a DEST-DIR se non esistono già.
