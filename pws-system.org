@@ -978,6 +978,38 @@ privato."
         (setq edoc-current-edition-path private-target)
         (message "edoc-current-edition-path → %s" edoc-current-edition-path)))))
 
+(defun edoc--next-session (year session)
+  "Restituisce (cons NEXT-YEAR NEXT-SESSION) per la prossima sessione.
+Ciclo: summer → winter → (next year) summer."
+  (pcase session
+    ("summer" (cons year "winter"))
+    ("winter" (cons (number-to-string (1+ (string-to-number year))) "summer"))
+    (_ (cons year "summer"))))
+
+(defun edoc-create-next-edition ()
+  "Crea la prossima edizione in public/content/ANNO/SESSION/.
+Basato su edoc-current-edition-path: calcola ANNO e SESSION, 
+poi genera la cartella successiva nel ciclo (summer → winter → next year summer)."
+  (interactive)
+  (let* ((path (expand-file-name edoc-current-edition-path))
+         (parts (split-string path "/" t))
+         (len (length parts))
+         (current-year (nth (- len 2) parts))
+         (current-session (nth (- len 1) parts)))
+    (unless (and current-year current-session (string-match-p "^[0-9]\\{4\\}$" current-year))
+      (user-error "Non riesco a estrarre anno/sessione da: %s" path))
+    (let* ((next (edoc--next-session current-year current-session))
+           (next-year (car next))
+           (next-session (cdr next))
+           (public-base (expand-file-name "content" (edoc--repo-path "public")))
+           (public-target (expand-file-name (format "%s/%s" next-year next-session) public-base)))
+      (message "Creazione prossima edizione: %s/%s" next-year next-session)
+      (if (file-directory-p public-target)
+          (message "⚠️  Directory già esiste: %s" public-target)
+        (make-directory public-target t)
+        (message "✅ Creata: %s" public-target))
+      (message "Usa M-x edoc-select-edition per configurare la versione privata."))))
+
 (provide 'edoc)
 #+END_SRC
 
