@@ -789,6 +789,8 @@ Punto di ingresso del sistema: caricamento pacchetti, definizione di `defcustom`
 
 (require 'seq)
 (require 'subr-x)
+(require 'roman-numerals)
+(require 'edoc-vars)
 
 (defgroup edoc nil
   "Sistema di pubblicazione EPrivacy."
@@ -1009,6 +1011,108 @@ poi genera la cartella successiva nel ciclo (summer → winter → next year sum
         (make-directory public-target t)
         (message "✅ Creata: %s" public-target))
       (message "Usa M-x edoc-select-edition per configurare la versione privata."))))
+
+(defun edoc--detect-next-session-by-month ()
+  "Restituisce 'spring'/'summer' (primo semestre) o 'autumn'/'winter' (secondo semestre).
+Basato sul mese corrente: gen-giu → spring/summer, lug-dic → autumn/winter.
+Usa semestralmente alternato (spring → summer, autumn → winter)."
+  (let* ((month (nth 4 (decode-time)))
+         (is-first-half (< month 7)))
+    (if is-first-half
+        (if (< month 5) "spring" "summer")
+      (if (< month 10) "autumn" "winter"))))
+
+(defun edoc--next-edition-number (current-num-str)
+  "Calcola il prossimo numero edizione da CURRENT-NUM-STR (es. 'XXXVI').
+Se è un numero romano, converti a int, +1, riconverti. Altrimenti usa '1'."
+  (if (and current-num-str (string-match "[IVXLCDM]" current-num-str))
+      (let ((current-int (condition-case nil
+                           (roman-numeral-parse current-num-str)
+                           (error 1))))
+        (roman-numeral (1+ current-int)))
+    "I"))
+
+(defun edoc--copy-vars-org (src-vars-path dest-vars-path new-vars)
+  "Copia SRC-VARS-PATH a DEST-VARS-PATH, aggiornando le keyword con NEW-VARS.
+NEW-VARS è un alist di (KEY . VALUE) (es. ((\"NUM\" . \"XXXVII\") (\"TITLE\" . \"...\")))."
+  (with-temp-buffer
+    (insert-file-contents src-vars-path)
+    (dolist (pair new-vars)
+      (let ((key (car pair))
+            (value (cdr pair)))
+        (goto-char (point-min))
+        (if (re-search-forward (format "^#\\+%s:\\s-*\\(.*\\)$" key) nil t)
+            (replace-match (format "#+%s: %s" key value) nil nil)
+          (goto-char (point-max))
+          (insert (format "\n#+%s: %s" key value)))))
+    (write-file dest-vars-path)))
+
+(defun edoc-create-new-edition-wizard ()
+  "Wizard interattivo per creare una nuova edizione completa.
+Chiede venue, sessioni, numero, e popola vars.org."
+  (interactive)
+  (let* ((path (expand-file-name edoc-current-edition-path))
+         (parts (split-string path "/" t))
+         (len (length parts))
+         (current-year (nth (- len 2) parts))
+         (current-session (nth (- len 1) parts))
+         (current-vars-path (expand-file-name "vars.org" path)))
+    (unless (and current-year current-session)
+      (user-error "Non riesco a estrarre anno/sessione da: %s" path))
+    
+    ;; Chiedi informazioni
+    (let* ((next (edoc--next-session current-year current-session))
+           (next-year (car next))
+           (next-session (cdr next))
+           (venue (read-string "Venue (città/luogo): "))
+           (num-sessioni (completing-read "Sessioni: " '("1 (un giorno)" "2 (due giorni)") nil t))
+           (when-text (if (string-prefix-p "1" num-sessioni)
+                          (read-string "Data (es. 15 maggio 2026): ")
+                        (read-string "Date (es. 15-16 maggio 2026): ")))
+           (previous-vars (edoc-parse-vars current-vars-path))
+           (previous-num (plist-get previous-vars :num))
+           (next-num (edoc--next-edition-number previous-num))
+           (next-label (read-string "Label (es. numero romano) [default: auto]: " next-num))
+           (public-base (expand-file-name "content" (edoc--repo-path "public")))
+           (public-target (expand-file-name (format "%s/%s" next-year next-session) public-base))
+           (private-base (expand-file-name "content" (edoc--repo-path "private")))
+           (private-target (expand-file-name (format "%s/%s" next-year next-session) private-base))
+           (dest-vars-path (expand-file-name "vars.org" private-target)))
+      
+      ;; Crea directory pubblica
+      (unless (file-directory-p public-target)
+        (make-directory public-target t)
+        (message "Creata directory pubblica: %s" public-target))
+      
+      ;; Crea directory privata
+      (unless (file-directory-p private-target)
+        (make-directory private-target t)
+        (message "Creata directory privata: %s" private-target))
+      
+      ;; Copia e aggiorna vars.org
+      (let ((new-vars `(("YEAR" . ,next-year)
+                        ("SEASON" . ,next-session)
+                        ("NUM" . ,next-label)
+                        ("CITY" . ,venue)
+                        ("LOCATION" . ,venue)
+                        ("WHEN" . ,when-text)
+                        ("EDITION" . ,next-session)
+                        ("STATUS" . "draft")
+                        ("LOCK" . ""))))
+        (edoc--copy-vars-org current-vars-path dest-vars-path new-vars)
+        (message "Creato vars.org con metadati aggiornati"))
+      
+      ;; Crea options.org minimo
+      (let ((options-path (expand-file-name "options.org" private-target)))
+        (unless (file-exists-p options-path)
+          (with-temp-file options-path
+            (insert "#+OPTIONS: toc:nil\n"))
+          (message "Creato options.org stub")))
+      
+      ;; Aggiorna edoc-current-edition-path
+      (setq edoc-current-edition-path private-target)
+      (message "edoc-current-edition-path -> %s" edoc-current-edition-path)
+      (message "Nuova edizione %s/%s pronta!" next-year next-session))))
 
 (provide 'edoc)
 #+END_SRC
