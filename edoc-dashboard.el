@@ -1,4 +1,3 @@
-;;; edoc-dashboard.el --- Interfaccia testuale PWS -*- lexical-binding: t -*-
 
 (require 'edoc-vars)
 (require 'edoc-git)

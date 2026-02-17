@@ -7,7 +7,7 @@
 (require 'edoc-dashboard)
 (require 'edoc)
 
-(setq edoc-current-edition-path "~/production-site/private/content/2025/winter/")
+(setq edoc-current-edition-path "/home/epub/production-site/private/content/2026/summer/")
 
 (dolist (buf '("*GNU Emacs*" "*scratch*"))
   (when (get-buffer buf)
