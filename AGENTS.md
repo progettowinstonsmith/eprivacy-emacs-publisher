@@ -1,4 +1,11 @@
-# Repository Guidelines
+# Session Log & Repository Guidelines
+
+## Latest Session (104d0967-0479-4ec7-989b-13b823fa8af0)
+**Task**: Simplify `edoc-save-current-edition()` to use Emacs customization API
+- Modified `pws-system.org` (lines 1170-1185) to use `customize-save-variable`
+- Regenerated `edoc.el` via `org-babel-tangle`
+- Committed and pushed: "Simplify edoc-save-current-edition with customize-save-variable"
+- Status: ✅ Complete - function now uses standard Emacs customization instead of manual file parsing
 
 ## Project Structure & Module Organization
 The repository is Emacs-first: production code lives in `*.el` modules (e.g., `edoc-org-program.el`, `edoc-dashboard.el`), while their literate Org counterparts (`pws-*.org`) are the single sources of truth.  Tests reside under `test-*.el`, and working content (editions, assets) is pulled from the edition directories managed by `edoc-dashboard`.  Always edit the Org files and re-tangle (`M-x org-babel-tangle`) to regenerate the corresponding Elisp.
