@@ -1579,7 +1579,7 @@ Le keyword locali sovrascrivono quelle globali. LOCK viene escluso."
 
 (defun edoc-upload-if-ok (public-root)
   "Esegue `make rsync_upload` nella directory PUBLIC-ROOT. Se il comando ha successo,
-crea o aggiorna il file `.last` nella stessa directory con il timestamp corrente."
+crea o aggiorna il file `.last`, committa e pusha il cambio."
   (interactive "DDirectory principale della public/: ")
   (let ((default-directory (file-name-as-directory (expand-file-name public-root)))
 	(last-file ".last"))
@@ -1589,7 +1589,10 @@ crea o aggiorna il file `.last` nella stessa directory con il timestamp corrente
           (progn
             (with-temp-file (expand-file-name last-file default-directory)
               (insert (format-time-string "%Y-%m-%d %H:%M:%S\n")))
-            (message "Upload completato con successo. File `.last` aggiornato."))
+            (call-process "git" nil nil t "add" last-file)
+            (call-process "git" nil nil t "commit" "-m" "Update .last after rsync upload")
+            (call-process "git" nil nil t "push")
+            (message "Upload completato. File `.last` aggiornato, committato e pushato."))
 	(message "Errore durante l'upload (codice %s). File `.last` NON aggiornato." exit-code)))))
 
 (defun edoc-start-devserver ()
